@@ -30,7 +30,12 @@ Customer mengajukan order laundry dengan menentukan jenis layanan, berat cucian,
 | Driver | Lihat pickup yang ditugaskan, update status pickup miliknya | Melihat pickup driver lain, mengubah data order |
 
 ## State Machine Order
-pending_pickup → ready_for_pickup → confirmed → assigned → picked_up → processing → completed
+```
+pending_pickup -> ready_for_pickup -> confirmed -> assigned -> picked_up -> processing -> completed
+      |                  |              |
+      v                  v              v
+  cancelled          cancelled      cancelled
+```
 
 **Definisi tiap status:**
 
