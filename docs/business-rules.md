@@ -8,43 +8,319 @@ Client-side validation may be used to improve user experience, but it must not b
 
 A request that bypasses client-side validation must still be validated by the service.
 
+For the Laundry Pickup & Delivery workflow, the service is responsible for validating:
+
+* The authenticated actor's identity and permissions.
+* Whether the customer owns the order they are attempting to cancel.
+* The current server-side state of the order.
+* Whether the requested state transition is allowed by the order lifecycle.
+
 ---
 
-## 2. Primary Business Rule
+## 2. Primary Business Rule: Order Cancellation
 
 ### Rule
 
-An order may only undergo a consequential state transition when its current state allows that transition.
+A customer may cancel an order only while the order is in one of the following states:
 
-For example, an order that has already entered a non-cancellable processing state must not be cancelled.
+* `pending_pickup`
+* `ready_for_pickup`
+* `confirmed`
 
-### Service
+Once a driver has been assigned and the order reaches `assigned`, the order can no longer be cancelled by the customer.
 
-The service must validate the current state of the resource before performing the state transition.
+The cancellation operation is represented as a consequential state transition:
 
-If the transition is not allowed, the service must reject the request.
+```text
+POST /v1/orders/{orderId}/cancellation
+```
 
-### Contract
-
-The API contract must document:
-
-* the valid operation,
-* the required request data,
-* successful response,
-* possible domain rejection,
-* and the corresponding HTTP status code.
-
-A state transition that is not allowed because of the current domain state should return `409 Conflict`.
-
-### Client
-
-The client may inspect the resource state and disable or hide actions that are known to be unavailable.
-
-However, the client must still handle a `409 Conflict` response because the resource state may change between the time it is displayed and the time the request is submitted.
+The rule exists because assigning a driver creates a commitment to perform the pickup. Allowing cancellation after a driver has been assigned could result in wasted time and effort for the driver.
 
 ---
 
-# Error Catalog
+## 3. Order State Lifecycle
+
+The order follows the following lifecycle:
+
+```text
+pending_pickup
+       |
+       +----------------> cancelled
+       |
+       v
+ready_for_pickup
+       |
+       +----------------> cancelled
+       |
+       v
+confirmed
+       |
+       +----------------> cancelled
+       |
+       v
+assigned
+       |
+       v
+picked_up
+       |
+       v
+processing
+       |
+       v
+completed
+```
+
+### Order States
+
+| Status             | Description                                                              | Triggered By           |
+| ------------------ | ------------------------------------------------------------------------ | ---------------------- |
+| `pending_pickup`   | A newly created order waiting for staff review.                          | Customer creates order |
+| `ready_for_pickup` | The order has been approved by staff and is ready for driver assignment. | Staff Laundry          |
+| `confirmed`        | The system/staff is actively searching for an available driver.          | Staff Laundry          |
+| `assigned`         | A driver has been assigned to the order.                                 | Staff Laundry / system |
+| `picked_up`        | The driver has picked up the laundry from the customer.                  | Driver                 |
+| `processing`       | The laundry is being processed by the laundry staff.                     | Staff Laundry          |
+| `completed`        | The laundry has been processed and returned to the customer.             | Staff Laundry          |
+| `cancelled`        | The order has been cancelled by the customer.                            | Customer               |
+
+---
+
+## 4. Allowed and Prohibited State Transitions
+
+The service must only perform state transitions that are valid for the order lifecycle.
+
+### Allowed Transitions
+
+| Current Status     | Next Status        | Actor                  |
+| ------------------ | ------------------ | ---------------------- |
+| `pending_pickup`   | `ready_for_pickup` | Staff Laundry          |
+| `pending_pickup`   | `cancelled`        | Customer               |
+| `ready_for_pickup` | `confirmed`        | Staff Laundry          |
+| `ready_for_pickup` | `cancelled`        | Customer               |
+| `confirmed`        | `assigned`         | Staff Laundry / system |
+| `confirmed`        | `cancelled`        | Customer               |
+| `assigned`         | `picked_up`        | Driver                 |
+| `picked_up`        | `processing`       | Staff Laundry          |
+| `processing`       | `completed`        | Staff Laundry          |
+
+### Prohibited Cancellation Transitions
+
+The following cancellation transitions are not allowed:
+
+```text
+assigned      → cancelled
+picked_up     → cancelled
+processing    → cancelled
+completed     → cancelled
+cancelled     → cancelled
+```
+
+If a cancellation request is received for an order in one of these states, the service must reject the request with:
+
+```text
+409 Conflict
+```
+
+using the Problem Details format.
+
+---
+
+## 5. Actor Authorization
+
+The system has three primary actors with different permissions:
+
+### Customer
+
+The customer may:
+
+* Create an order.
+* View their own orders.
+* Cancel their own order while cancellation is permitted.
+
+The customer may not:
+
+* View another customer's order.
+* Assign a driver.
+* Update the order's processing status.
+
+### Staff Laundry
+
+Staff Laundry may:
+
+* View all orders.
+* Mark an order as ready for pickup.
+* Monitor driver assignment.
+* Update the order during the laundry processing workflow.
+
+Staff Laundry may not perform customer cancellation through the customer cancellation operation.
+
+### Driver
+
+The driver may:
+
+* View pickups assigned to them.
+* Update the status of their assigned pickup.
+
+The driver may not:
+
+* View pickups assigned to other drivers.
+* Change the ownership or customer information of an order.
+* Cancel an order through the customer cancellation operation.
+
+---
+
+## 6. Business Rule Decomposition
+
+The primary business rule is divided into three layers.
+
+### Service — Enforces
+
+The service is the only authoritative layer responsible for enforcing the order cancellation rule.
+
+When receiving a cancellation request, the service must:
+
+1. Authenticate the requesting actor.
+2. Verify that the actor is the customer who owns the order.
+3. Retrieve the current order state from the authoritative data source.
+4. Verify that the current order status is `pending_pickup`, `ready_for_pickup`, or `confirmed`.
+5. Perform the cancellation only if all required conditions are satisfied.
+
+The service must not rely on order status supplied by the client to determine whether cancellation is allowed.
+
+If the order is already `assigned` or has progressed beyond that state, the service must reject the cancellation request.
+
+The rejection must use:
+
+```text
+409 Conflict
+```
+
+with the Problem Details type:
+
+```text
+https://api.example.com/problems/order-not-cancellable
+```
+
+---
+
+### Contract — States
+
+The API contract must communicate the business rule so that clients can predict the expected behavior.
+
+The `Order` schema must expose the order status as an enum containing:
+
+```text
+pending_pickup
+ready_for_pickup
+confirmed
+assigned
+picked_up
+processing
+completed
+cancelled
+```
+
+The cancellation operation must document that cancellation is only permitted while the order is in:
+
+```text
+pending_pickup
+ready_for_pickup
+confirmed
+```
+
+The operation must also document `409 Conflict` as a possible response when cancellation is not allowed because of the current order state.
+
+The Problem Details response may include extension members such as:
+
+```json
+{
+  "currentStatus": "assigned",
+  "allowedStatuses": [
+    "pending_pickup",
+    "ready_for_pickup",
+    "confirmed"
+  ]
+}
+```
+
+These values allow clients to understand the reason for the rejection without having to infer the business rule themselves.
+
+---
+
+### Client — Predicts
+
+Clients may use the order status to provide appropriate user experience.
+
+For example, the mobile customer application may display the cancellation action while the order is in a cancellable state and hide or disable it once the order reaches `assigned`.
+
+The web admin dashboard may display the current order state and indicate whether cancellation is still possible.
+
+The MCP client may use the documented order status and cancellation rule to determine whether it should attempt the cancellation operation.
+
+However, these client-side behaviors are only predictions and UX optimizations.
+
+Clients must still handle:
+
+```text
+409 Conflict
+```
+
+because the order state may change between the time the client observes the order and the time the cancellation request reaches the service.
+
+For example:
+
+```text
+Client observes:
+status = confirmed
+        ↓
+Client displays "Cancel Order"
+        ↓
+Order changes:
+confirmed → assigned
+        ↓
+Client sends cancellation request
+        ↓
+Service checks current state:
+assigned
+        ↓
+409 Conflict
+```
+
+---
+
+## 7. Single-Layer Enforcement
+
+The order cancellation rule is enforced authoritatively only by the service.
+
+The client may predict whether cancellation is available based on the order status, and the API contract may describe the rule, but neither the client nor the contract is an enforcement mechanism.
+
+A request sent directly to the API must be subject to the same validation as a request sent through the normal client application.
+
+For example, if an order has already reached `assigned`, the following request must be rejected:
+
+```http
+POST /v1/orders/{orderId}/cancellation
+```
+
+The service must return:
+
+```text
+409 Conflict
+```
+
+regardless of whether the request originated from:
+
+* Web client
+* Mobile client
+* MCP client
+* Direct HTTP client
+
+This ensures that the business rule cannot be bypassed by using a different client.
+
+---
+
+# 8. Error Catalog
 
 ## Client Fault
 
@@ -68,6 +344,12 @@ Domain rejection means that the request is structurally valid but cannot be perf
 | Idempotency key reused with different request |    409 | No    |
 | Domain validation failure                     |    422 | No    |
 
+For the primary business rule, attempting to cancel an order after it has reached `assigned` or a later state results in:
+
+```text
+409 Conflict
+```
+
 ## Server Fault
 
 Server faults represent temporary or unexpected failures on the service side.
@@ -83,9 +365,15 @@ Retries for server faults should use exponential backoff and should not be perfo
 
 ---
 
-# Problem Details
+# 9. Problem Details
 
-All API errors must use the `application/problem+json` media type.
+All API errors must use the:
+
+```http
+Content-Type: application/problem+json
+```
+
+media type.
 
 The minimum response structure is:
 
@@ -101,15 +389,33 @@ The minimum response structure is:
 
 The service may provide additional extension members when they are useful to the client.
 
+For an order cancellation rejected because the order is no longer cancellable, an example response is:
+
+```json
+{
+  "type": "https://api.example.com/problems/order-not-cancellable",
+  "title": "Order cannot be cancelled",
+  "status": 409,
+  "detail": "The order cannot be cancelled because a driver has already been assigned.",
+  "instance": "/v1/orders/ord_01HZX2Y5K7/cancellation",
+  "currentStatus": "assigned",
+  "allowedStatuses": [
+    "pending_pickup",
+    "ready_for_pickup",
+    "confirmed"
+  ]
+}
+```
+
 ---
 
-# Idempotency Policy
+# 10. Idempotency Policy
 
 ## Purpose
 
 Idempotency prevents an unsafe operation from being executed multiple times when a client retries a request.
 
-This is particularly important for clients operating under unreliable network conditions, where a request may have succeeded even though the client did not receive the response.
+This is particularly important for clients operating under unreliable network conditions, especially the mobile client used by the driver and customer.
 
 ## Header
 
@@ -119,7 +425,7 @@ Unsafe mutation operations must use:
 Idempotency-Key: <UUID>
 ```
 
-The key should use UUID v4 format.
+The key must use UUID v4 format.
 
 ## Key Creation
 
@@ -131,9 +437,11 @@ A new key must not be generated merely because the client is retrying the same o
 
 ## Retention
 
-The service retains idempotency records for **24 hours**.
+The service retains idempotency records for:
 
-This retention period may be adjusted by the team if the final domain workflow requires a different operational policy.
+```text
+24 hours
+```
 
 ## Same Key, Same Request
 
@@ -165,17 +473,17 @@ indicating that the request associated with the idempotency key is still being p
 
 ## Failed Requests
 
-The final behavior for failed requests associated with an idempotency key must be defined consistently in the API contract.
+The service must distinguish between:
 
-The team must distinguish between:
+* A request rejected before the operation was performed.
+* A request that successfully performed the operation.
+* A request whose final result is temporarily unknown.
 
-* a request that was rejected before the operation was performed,
-* a request that successfully performed the operation,
-* and a request whose final result is temporarily unknown.
+The final behavior for failed requests associated with an idempotency key must be implemented consistently with the API contract.
 
 ---
 
-# Retry Policy
+# 11. Retry Policy
 
 Clients must not automatically retry:
 
@@ -199,66 +507,24 @@ Unsafe operations must always preserve the original `Idempotency-Key` during ret
 
 ---
 
-# Business Rule Decomposition — Order Cancellation
+# 12. Business Rule Summary
 
-## Aturan Bisnis Terpilih
+The primary business rule for the Laundry Pickup & Delivery workflow is:
 
-**"Customer tidak dapat membatalkan order setelah driver ditugaskan
-(status `assigned`) atau setelahnya."**
+> **A customer may cancel their own order only while the order is in `pending_pickup`, `ready_for_pickup`, or `confirmed`. Once a driver has been assigned and the order reaches `assigned`, cancellation is no longer permitted.**
 
-Dipilih sebagai aturan bisnis utama karena pelanggarannya menimbulkan
-dampak nyata terbesar: driver yang sudah berkomitmen ke sebuah pickup
-akan dirugikan waktu dan usaha jika order tetap bisa dibatalkan sepihak oleh customer tanpa batasan.
+The responsibility is divided as follows:
 
-## Dekomposisi Tiga Lapisan
+```text
+Service
+→ Authoritatively enforces the rule.
 
-### Service — Menegakkan (satu-satunya lapisan otoritatif)
+Contract
+→ Documents the allowed states and possible rejection.
 
-Service menolak setiap permintaan `POST /v1/orders/{orderId}/cancellation` apabila `order.status` bukan salah satu dari `pending_pickup`, `ready_for_pickup`, atau `confirmed`.
-
-- Pengecekan dilakukan di sisi service terhadap state yang tersimpan,
-  bukan mengandalkan state yang dikirim client.
-- Response: `409 Conflict` dengan Problem Details ber-`type`
-  `.../problems/order-not-cancellable`.
-- Ini satu-satunya tempat aturan ini berlaku secara otoritatif.
-
-### Contract — Menyatakan
-
-`openapi.yaml` menyatakan aturan ini lewat:
-
-- **Enum status** pada schema `Order`: `pending_pickup, ready_for_pickup,
-  confirmed, assigned, picked_up, processing, completed, cancelled`.
-- **Problem type** `order-not-cancellable` di katalog error, dengan
-  extension members `currentStatus` dan `allowedStatuses` supaya client bisa tahu kondisi penolakan tanpa menebak.
-- **Deskripsi eksplisit** pada operasi `cancelOrder`:
-  > "Cancellation is only permitted while order status is
-  > `pending_pickup`, `ready_for_pickup`, or `confirmed`. Once a driver
-  > has been assigned, cancellation requests are rejected with 409."
-
-Contoh response:
-```json
-{
-  "type": "https://api.example.com/problems/order-not-cancellable",
-  "title": "Order cannot be cancelled",
-  "status": 409,
-  "detail": "Order has already been assigned to a driver.",
-  "instance": "/v1/orders/ord_01HZX2Y5K7/cancellation",
-  "currentStatus": "assigned",
-  "allowedStatuses": ["pending_pickup", "ready_for_pickup", "confirmed"]
-}
+Client
+→ Predicts the outcome and provides appropriate UX,
+  but does not enforce the rule.
 ```
 
-### Client — Memprediksi (bukan mengendalikan)
-
-Semua client memprediksi hasil aturan ini berdasarkan `status` order yang mereka miliki:
-
-- **Mobile customer app**: menyembunyikan/menonaktifkan tombol "Batalkan Order" begitu `order.status` sudah `assigned` atau setelahnya. Ini kemudahan UX, bukan kontrol.
-- **Web admin dashboard**: menampilkan indikator "tidak dapat dibatalkan" pada order yang sudah `assigned`, dibaca dari field status yang sama.
-- **MCP agent**: membaca aturan dari deskripsi operasi di kontrak dan
-  tidak mencoba memanggil cancellation di luar status yang diizinkan.
-  Kalau tetap dicoba, agent menerima `409` yang harus diformulasikan
-  cukup jelas agar tidak retry berulang.
-
-## Catatan Penegakan Tunggal
-
-Aturan ini **hanya** ditegakkan di service. Validasi di sisi client, seperti menyembunyikan tombol sama sekali bukan mekanisme keamanan atau kontrol bisnis. Permintaan cancellation lewat `curl` langsung ke service pada order yang sudah `assigned` tetap harus menerima `409`, terlepas dari apa yang ditampilkan di UI manapun.
+The service therefore remains the single authoritative source for determining whether an order cancellation is valid.
