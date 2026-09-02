@@ -1,4 +1,3 @@
-
 openapi: 3.0.3
 info:
   title: Laundry Pickup & Delivery API
@@ -6,12 +5,12 @@ info:
   license:
     name: Academic project
   description: >-
-    Draft contract-first API for submitting laundry orders and arranging pickup.
-    This specification is a working draft and must be reviewed after the domain
-    workflow is confirmed by the team.
+    Contract-first API for submitting laundry orders and arranging pickup.
+    Clients MUST ignore unknown response fields and MUST safely handle unknown
+    enumeration values without crashing.
 servers:
   - url: https://api.example.com/v1
-    description: Production placeholder
+    description: Production API
   - url: http://localhost:8080/v1
     description: Local service
 security:
@@ -30,6 +29,8 @@ paths:
       operationId: listOrders
       parameters:
         - $ref: '#/components/parameters/OrderStatusFilter'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
       responses:
         '200':
           description: Order collection
@@ -97,6 +98,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableContent'
         '500':
@@ -152,6 +155,11 @@ paths:
       description: >-
         Cancels an order only while its current state allows cancellation. The
         service is authoritative; clients must handle 409 if state changed.
+        Cancellation is permitted only for pending_pickup, ready_for_pickup,
+        and confirmed orders. Idempotency-Key is generated when the user
+        confirms the operation, retained for 24 hours, and reused unchanged
+        for retries. Reusing it with a different request returns 409. A
+        matching request still being processed returns 409 with Retry-After.
       parameters:
         - $ref: '#/components/parameters/OrderId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -196,6 +204,8 @@ paths:
       operationId: listPickups
       parameters:
         - $ref: '#/components/parameters/PickupStatusFilter'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
       responses:
         '200':
           description: Pickup collection
@@ -248,8 +258,27 @@ components:
       description: Return orders with this status
       schema:
         type: string
-        enum: [pending_pickup, ready_for_pickup, picked_up, processing, completed, cancelled]
+        enum: [pending_pickup, ready_for_pickup, confirmed, assigned, picked_up, processing, completed, cancelled]
         example: ready_for_pickup
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of resources returned in the collection.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+        example: 20
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque cursor for retrieving the next collection page.
+      schema:
+        type: string
+        example: cur_01HZX31ABC
     PickupStatusFilter:
       name: status
       in: query
@@ -263,7 +292,13 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: UUID v4 retained by service for 24 hours for this mutation.
+      description: >-
+        Canonical UUID v4 generated when the user confirms the operation and
+        persisted with the pending request. The same key must be reused for
+        every retry of that request and is retained for 24 hours. A new key
+        after retention is treated as a new request. The same key with the
+        same request returns the original result; the same key with different
+        request data returns 409 Conflict.
       schema:
         type: string
         format: uuid
@@ -294,7 +329,8 @@ components:
           example: Jl. Merdeka No. 10, Jakarta
         status:
           type: string
-          enum: [pending_pickup, ready_for_pickup, picked_up, processing, completed, cancelled]
+          enum: [pending_pickup, ready_for_pickup, confirmed, assigned, picked_up, processing, completed, cancelled]
+          description: Clients MUST safely handle unknown values as an in-progress state.
           example: pending_pickup
         createdAt:
           type: string
@@ -389,6 +425,14 @@ components:
         instance:
           type: string
           example: /v1/orders/ord_01HZX2Y5K7/cancellation
+        currentStatus:
+          type: string
+          example: assigned
+        allowedStatuses:
+          type: array
+          items:
+            type: string
+          example: [pending_pickup, ready_for_pickup, confirmed]
 
   responses:
     BadRequest:
@@ -460,6 +504,13 @@ components:
                 status: 409
                 detail: Idempotency-Key was reused with different request data.
                 instance: /v1/orders
+      headers:
+        Retry-After:
+          description: Seconds to wait when the request for this key is still processing.
+          schema:
+            type: integer
+            minimum: 1
+            example: 5
     UnprocessableContent:
       description: Request data or domain validation failed
       content:
