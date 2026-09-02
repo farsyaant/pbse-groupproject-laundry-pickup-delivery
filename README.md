@@ -5,7 +5,7 @@
 
 <p align="center">
   <a href="#-gambaran-umum">Gambaran Umum</a> •
-  <a href="#-tim--pembagian-peran">Kelompok</a> •
+  <a href="#-pembagian-peran">Kelompok</a> •
   <a href="#-domain--alur-kerja">Domain</a> •
   <a href="#-struktur-repositori">Struktur</a> •
   <a href="#-menjalankan-mock-server">Mock Server</a> •
@@ -17,8 +17,8 @@
 
 ## 🏛️ Identitas Proyek
 
-**Proyek Mata Kuliah PACS262520 - Platform-Based Software Engineering Kelas KOM**
-Departemen Ilmu Komputer dan Elektronika, FMIPA UGM — Semester Gasal 2026/2027
+**Proyek Mata Kuliah PACS262520 - Platform Based Software Engineering Kelas KOM**
+Program Studi Ilmu Komputer, Departemen Ilmu Komputer dan Elektronika, FMIPA UGM - Semester Gasal 2026/2027
 
 ### 👥 Kelompok
 
@@ -75,10 +75,13 @@ kemudian diproses hingga selesai dan diantarkan kembali ke customer.
 Customer dapat membatalkan order selama belum ada driver yang ditugaskan.
 
 ### State Machine Order
+
+```
 pending_pickup -> ready_for_pickup -> confirmed -> assigned -> picked_up -> processing -> completed
       |                  |              |
       v                  v              v
   cancelled          cancelled      cancelled
+```
 
 ### Tiga Aktor Utama
 
@@ -153,7 +156,7 @@ npx @redocly/cli lint openapi.yaml
 
 ## 🔗 Referensi Materi
 
-Proyek ini mengikuti kerangka kerja mata kuliah Platform-Based Software Engineering
+Proyek ini mengikuti silabus mata kuliah Platform Based Software Engineering.
 
 ---
 
