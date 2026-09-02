@@ -1,0 +1,59 @@
+# 0001 — Domain Selection
+
+## Context
+
+The Laundry Pickup & Delivery system provides a workflow for customers to submit laundry orders and receive pickup and delivery services. The system involves multiple actors with different responsibilities and requires reliable handling of consequential operations.
+
+The selected workflow must be sufficiently small to be completed as one coherent flow while still demonstrating important platform-based API concerns, including authorization, unreliable connectivity, error handling, and idempotent mutations.
+
+The system is expected to support at least three actors with different access rights, an unsafe operation whose duplicate execution could cause unwanted consequences, and at least one client operating under unreliable network conditions.
+
+## Decision
+
+The team will focus on a single end-to-end laundry order workflow.
+
+The workflow and its final boundaries will be confirmed together with the Client Owner before the API contract is finalized.
+
+The Service Owner will define the authoritative business rules that must be enforced by the service. The API contract will expose these rules through documented request, response, and error behavior, while clients will only use the rules to provide appropriate user experience.
+
+The service must remain the final authority for business-rule enforcement. Client-side validation must not be considered a security or business-rule enforcement mechanism.
+
+For consequential mutation operations, the API will use an `Idempotency-Key` to prevent accidental duplicate execution when clients retry requests, particularly when operating under unreliable network conditions.
+
+## Alternatives Considered
+
+### Alternative 1 — Full Laundry Lifecycle
+
+The system could model the complete lifecycle from order creation through pickup, washing, delivery, and completion.
+
+This provides a realistic domain but introduces too many states and interactions for a small contract-first assignment.
+
+### Alternative 2 — Laundry Pickup Workflow
+
+The system could focus specifically on the process of creating an order and requesting a laundry pickup.
+
+This provides a clear consequential operation and can demonstrate idempotency and business-rule validation without requiring the entire laundry lifecycle.
+
+### Alternative 3 — Order Cancellation Workflow
+
+The system could focus on cancellation of a laundry order.
+
+This provides a clear business rule, such as restricting cancellation after processing has started, and naturally demonstrates domain rejection through `409 Conflict`.
+
+However, cancellation alone may provide a narrower workflow than the pickup process.
+
+## Consequences
+
+The selected workflow should remain small enough to be represented clearly in the OpenAPI contract.
+
+Business rules must be documented before being translated into API behavior.
+
+Unsafe operations must define their idempotency behavior explicitly.
+
+Business-rule violations must be represented using appropriate Problem Details responses rather than relying solely on client-side validation.
+
+The final resource model and endpoint structure will be determined by the Contract Owner after the domain workflow and business rules have been agreed upon.
+
+## Status
+
+Draft — awaiting confirmation of the final workflow and domain scope by the Client Owner and the team.
