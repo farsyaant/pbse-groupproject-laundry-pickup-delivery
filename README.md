@@ -124,8 +124,6 @@ laundry-pickup-delivery/
 
 ## 🖥️ Menjalankan Mock Server
 
-> ⚠️ **TODO (Integration Owner):** lengkapi setelah `openapi.yaml` final.
-
 ```bash
 pnpm dlx @stoplight/prism-cli mock openapi.yaml -p 4010
 ```
