@@ -29,7 +29,10 @@ The workflow's states are: `pending_pickup`, `ready_for_pickup`,
 
 The system could model the complete lifecycle from order creation through pickup, washing, delivery, and completion.
 
-This provides a realistic domain but introduces too many states and interactions for a small contract-first assignment.
+Initially deprioritized due to concerns about state and interaction
+complexity for a small contract-first assignment. However, this
+concern was revisited and ultimately outweighed by the benefits of
+demonstrating the complete state machine — see Decision above.
 
 ### Alternative 2 — Laundry Pickup Workflow
 
@@ -57,11 +60,12 @@ Business-rule violations must be represented using appropriate Problem Details r
 
 The final resource model and endpoint structure will be determined by the Contract Owner after the domain workflow and business rules have been agreed upon.
 
+Detailed resource modeling decisions are documented in
+`docs/resource-modeling.md`, and the API compatibility policy is
+documented in `docs/compatibility.md`.
+
 ## Status
 
 Final — workflow and domain scope confirmed by the Client Owner and the
 team. Full detail in `docs/domain.md`, `docs/client-taxonomy.md`, and
 `docs/business-rules.md`.
-Detailed resource modeling decisions are documented in
-`docs/resource-modeling.md`, and the API compatibility policy is
-documented in `docs/compatibility.md`.
