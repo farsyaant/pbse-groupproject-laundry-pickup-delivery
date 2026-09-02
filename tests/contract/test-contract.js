@@ -15,15 +15,15 @@ const crypto = require('crypto');
 const CONFIG = {
   baseUrl: process.env.BASE_URL || 'http://127.0.0.1:4010',
   endpoints: {
-    collection: process.env.ENDPOINT_COLLECTION || '/v1/orders',
+    collection: process.env.ENDPOINT_COLLECTION || '/orders',
     filterParam: process.env.ENDPOINT_FILTER || 'status=completed',
-    createOrder: process.env.ENDPOINT_CREATE || '/v1/orders',
+    createOrder: process.env.ENDPOINT_CREATE || '/orders',
   },
   samplePayload: {
-    customer_id: 'cust_12345',
-    service_type: 'wash_fold',
-    weight_kg: 5.5,
-    pickup_address: 'Jl. Merdeka No. 10, Jakarta',
+    customerId: 'cus_01HZX2Y1AB',
+    serviceType: 'wash_fold',
+    weightKg: 5.5,
+    pickupAddress: 'Jl. Merdeka No. 10, Jakarta',
   },
 };
 
@@ -60,7 +60,10 @@ async function runTests() {
     console.log(`Request: GET ${urlCollection}`);
 
     const res1 = await fetch(urlCollection, {
-      headers: { Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        Authorization: 'Bearer mock_token',
+      },
     });
 
     assert(res1.status === 200, `Expected status 200, got ${res1.status}`);
@@ -86,7 +89,10 @@ async function runTests() {
     console.log(`Request: GET ${urlFilter}`);
 
     const res2 = await fetch(urlFilter, {
-      headers: { Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        Authorization: 'Bearer mock_token',
+      },
     });
 
     assert(res2.status === 200, `Expected status 200, got ${res2.status}`);
@@ -107,7 +113,7 @@ async function runTests() {
     // ----------------------------------------------------
     // Skenario 3: POST unsafe with Idempotency-Key
     // ----------------------------------------------------
-    logHeader('Skenario 3: POST unsafe WITH Idempotency-Key (Status 200 or 201)');
+    logHeader('Skenario 3: POST unsafe WITH Idempotency-Key (Status 201 Created)');
     const urlPost = `${CONFIG.baseUrl}${CONFIG.endpoints.createOrder}`;
     const idempotencyKey = crypto.randomUUID();
     console.log(`Request: POST ${urlPost}`);
@@ -118,14 +124,15 @@ async function runTests() {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'Authorization': 'Bearer mock_token',
         'Idempotency-Key': idempotencyKey,
       },
       body: JSON.stringify(CONFIG.samplePayload),
     });
 
     assert(
-      res3.status === 200 || res3.status === 201,
-      `Expected status 200 or 201, got ${res3.status}`
+      res3.status === 201 || res3.status === 200,
+      `Expected status 201 (or 200), got ${res3.status}`
     );
 
     const data3 = await res3.json();
@@ -146,6 +153,7 @@ async function runTests() {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json, application/problem+json',
+        'Authorization': 'Bearer mock_token',
       },
       body: JSON.stringify(CONFIG.samplePayload),
     });
@@ -156,10 +164,10 @@ async function runTests() {
     );
 
     const contentType4 = res4.headers.get('content-type') || '';
-    const isProblemJson = contentType4.includes('application/problem+json') || contentType4.includes('application/json');
+    const isProblemJson = contentType4.includes('application/problem+json');
     assert(
       isProblemJson,
-      `Expected problem+json or json Content-Type, got "${contentType4}"`
+      `Expected Content-Type application/problem+json, got "${contentType4}"`
     );
 
     const data4 = await res4.json();
@@ -167,9 +175,11 @@ async function runTests() {
       data4 !== null && typeof data4 === 'object',
       `Expected JSON error response object`
     );
-    if (data4.type || data4.title || data4.status || data4.detail) {
-      console.log(`  ✓ INFO: RFC 9457 Problem Details fields present (type/title/status/detail)`);
-    }
+    assert(typeof data4.type === 'string', `Error has 'type' field`);
+    assert(typeof data4.title === 'string', `Error has 'title' field`);
+    assert(typeof data4.status === 'number', `Error has 'status' field`);
+    assert(typeof data4.detail === 'string', `Error has 'detail' field`);
+    assert(typeof data4.instance === 'string', `Error has 'instance' field`);
     console.log(`Response body preview:`, JSON.stringify(data4).slice(0, 150));
 
   } catch (err) {
