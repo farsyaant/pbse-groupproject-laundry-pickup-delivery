@@ -4,7 +4,7 @@ This document contains runnable `curl` commands for all 4 contract testing scena
 
 ## Base Configuration
 - **Prism Mock Server URL:** `http://127.0.0.1:4010`
-- **Default Resource Endpoint:** `/orders`
+- **Default Resource Endpoint:** `/orders` (Prism mock route; API contract server URL includes `/v1`)
 
 ---
 
