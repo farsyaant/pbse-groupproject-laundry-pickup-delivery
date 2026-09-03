@@ -10,15 +10,9 @@ The system is expected to support at least three actors with different access ri
 
 ## Decision
 
-The team will focus on a single end-to-end laundry order workflow.
+The team selected a workflow spanning the full order lifecycle — from order creation through pickup, processing, and completion — rather than the narrower Pickup Workflow (Alternative 2) originally favored for scope control. This decision was made because the team determined that demonstrating the complete state machine, including the assignment and cancellation boundary, provided clearer material for interface design without materially increasing implementation complexity within this assignment's timeframe.
 
-The workflow and its final boundaries will be confirmed together with the Client Owner before the API contract is finalized.
-
-The Service Owner will define the authoritative business rules that must be enforced by the service. The API contract will expose these rules through documented request, response, and error behavior, while clients will only use the rules to provide appropriate user experience.
-
-The service must remain the final authority for business-rule enforcement. Client-side validation must not be considered a security or business-rule enforcement mechanism.
-
-For consequential mutation operations, the API will use an `Idempotency-Key` to prevent accidental duplicate execution when clients retry requests, particularly when operating under unreliable network conditions.
+The workflow's states are: `pending_pickup`, `ready_for_pickup`, `confirmed`, `assigned`, `picked_up`, `processing`, `completed`, and `cancelled`. Full detail is documented in `docs/domain.md`.
 
 ## Alternatives Considered
 
@@ -26,7 +20,7 @@ For consequential mutation operations, the API will use an `Idempotency-Key` to 
 
 The system could model the complete lifecycle from order creation through pickup, washing, delivery, and completion.
 
-This provides a realistic domain but introduces too many states and interactions for a small contract-first assignment.
+Initially deprioritized due to concerns about state and interaction complexity for a small contract-first assignment. However, this concern was revisited and ultimately outweighed by the benefits of demonstrating the complete state machine — see Decision above.
 
 ### Alternative 2 — Laundry Pickup Workflow
 
@@ -52,8 +46,8 @@ Unsafe operations must define their idempotency behavior explicitly.
 
 Business-rule violations must be represented using appropriate Problem Details responses rather than relying solely on client-side validation.
 
-The final resource model and endpoint structure will be determined by the Contract Owner after the domain workflow and business rules have been agreed upon.
+Detailed resource modeling decisions are documented in `docs/resource-modeling.md`, and the API compatibility policy is documented in `docs/compatibility.md`.
 
 ## Status
 
-Draft — awaiting confirmation of the final workflow and domain scope by the Client Owner and the team.
+Final — workflow and domain scope confirmed by the Client Owner and the team. Full detail in `docs/domain.md`, `docs/client-taxonomy.md`, and `docs/business-rules.md`.
