@@ -107,6 +107,7 @@ laundry-pickup-delivery/
 ├── docs/
 │   ├── domain.md               # Deskripsi domain & pemeriksaan 4 syarat
 │   ├── client-taxonomy.md      # Taksonomi client (5 sumbu)
+│   ├── resource-modeling.md    # Pemodelan kandidat resource Bagian B
 │   ├── business-rules.md       # Dekomposisi aturan bisnis
 │   └── decisions/
 │       └── 0001-domain.md      # ADR pemilihan domain
@@ -125,20 +126,20 @@ laundry-pickup-delivery/
 ## 🖥️ Menjalankan Mock Server
 
 ```bash
-pnpm dlx @stoplight/prism-cli mock openapi.yaml -p 4010
+pnpm --package=@stoplight/prism-cli dlx prism mock openapi.yaml -p 4010
 ```
 
 ### Contoh Perintah `curl`
 
 ```bash
 # 1. GET collection
-curl -i http://127.0.0.1:4010/v1/orders
+curl -i http://127.0.0.1:4010/orders
 
 # 2. GET dengan filter
-curl -i "http://127.0.0.1:4010/v1/orders?status=pending_pickup"
+curl -i "http://127.0.0.1:4010/orders?status=pending_pickup"
 
 # 3. POST dengan Idempotency-Key
-curl -i -X POST http://127.0.0.1:4010/v1/orders \
+curl -i -X POST http://127.0.0.1:4010/orders \
   -H 'Idempotency-Key: <uuid-v4>' \
   -H 'Content-Type: application/json' \
   -d '{ ... }'
