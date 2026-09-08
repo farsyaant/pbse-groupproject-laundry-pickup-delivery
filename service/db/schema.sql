@@ -25,6 +25,14 @@ CREATE TABLE IF NOT EXISTS orders (
 CREATE INDEX IF NOT EXISTS idx_orders_status_created
 ON orders(status, created_at, id);
 
+CREATE TABLE IF NOT EXISTS cancellations (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL REFERENCES orders(id),
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'completed',
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS idempotency_records (
   key TEXT PRIMARY KEY,
   body_hash TEXT NOT NULL,
