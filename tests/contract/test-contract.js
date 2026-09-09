@@ -234,7 +234,7 @@ async function runTests() {
 
     const urlNotFound = `${CONFIG.baseUrl}${CONFIG.endpoints.collection}/ord_0000000000`;
     const resNotFound = await fetch(urlNotFound, {
-      headers: { Accept: 'application/json', Authorization: 'Bearer mock_token' },
+      headers: { Accept: 'application/json, application/problem+json', Authorization: 'Bearer mock_token', Prefer: 'code=404' },
     });
     assert(resNotFound.status === 404, `Expected status 404 Not Found, got ${resNotFound.status}`);
 
