@@ -1,0 +1,21 @@
+name: Deploy to Portainer (kevinio)
+
+on:
+  workflow_run:
+    workflows: ["Build and publish container"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Trigger Portainer stack redeploy
+        run: |
+          curl -fsS -X PUT \
+            -H "X-API-Key: ${{ secrets.PORTAINER_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"RepullImageAndRedeploy": true}' \
+            "https://portainer.kevinio.my.id/api/stacks/${{ secrets.PORTAINER_STACK_ID }}/git/redeploy?endpointId=3"
