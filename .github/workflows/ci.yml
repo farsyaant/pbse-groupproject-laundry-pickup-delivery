@@ -30,6 +30,10 @@ jobs:
           pnpm install
 
       - name: Start Laundry Service
+        env:
+          PORT: 8080
+          DATABASE_FILE: ./db/laundry.sqlite
+          NODE_ENV: test
         run: |
           cd service
           node src/app.js &
