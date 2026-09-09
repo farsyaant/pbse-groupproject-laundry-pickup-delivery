@@ -1,0 +1,12 @@
+.git
+.github
+node_modules
+service/node_modules
+service/.env
+service/db/*.sqlite
+service/db/*.sqlite-*
+*.log
+*.err
+tests
+docs
+clients
