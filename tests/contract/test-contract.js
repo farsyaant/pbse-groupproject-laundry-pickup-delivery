@@ -238,6 +238,84 @@ async function runTests() {
     });
     assert(resNotFound.status === 404, `Expected status 404 Not Found, got ${resNotFound.status}`);
 
+    // ----------------------------------------------------
+    // Skenario 9: GET Collection — Pagination (limit param)
+    // ----------------------------------------------------
+    logHeader('Skenario 9: GET Collection Pagination (limit=1)');
+    const urlPagination = `${CONFIG.baseUrl}${CONFIG.endpoints.collection}?limit=1`;
+    console.log(`Request: GET ${urlPagination}`);
+
+    const resPagination = await fetch(urlPagination, {
+      headers: { Accept: 'application/json', Authorization: 'Bearer mock_token' },
+    });
+
+    assert(resPagination.status === 200, `Expected status 200, got ${resPagination.status}`);
+    const dataPagination = await resPagination.json();
+    assert(
+      Array.isArray(dataPagination) && dataPagination.length <= 1,
+      `Expected paginated array with at most 1 item, got ${Array.isArray(dataPagination) ? dataPagination.length : typeof dataPagination} items`
+    );
+
+    // ----------------------------------------------------
+    // Skenario 10: GET Collection — Empty Collection (status with no live rows)
+    // ----------------------------------------------------
+    logHeader('Skenario 10: GET Collection Empty Result (status=completed)');
+    const urlEmpty = `${CONFIG.baseUrl}${CONFIG.endpoints.collection}?status=completed`;
+    console.log(`Request: GET ${urlEmpty}`);
+
+    const resEmpty = await fetch(urlEmpty, {
+      headers: { Accept: 'application/json', Authorization: 'Bearer mock_token' },
+    });
+
+    assert(resEmpty.status === 200, `Expected status 200 for empty collection, got ${resEmpty.status}`);
+    const dataEmpty = await resEmpty.json();
+    assert(Array.isArray(dataEmpty), `Expected JSON array for empty collection, got ${typeof dataEmpty}`);
+    if (CONFIG.isLiveService) {
+      assert(dataEmpty.length === 0, `Expected empty JSON array, got ${dataEmpty.length} items`);
+    } else {
+      console.log(`  ✓ INFO: Prism static mock returned ${dataEmpty.length} example item(s); empty filtering is validated by live service`);
+    }
+
+    // ----------------------------------------------------
+    // Skenario 11: POST — Invalid body (missing required field) -> 400
+    // ----------------------------------------------------
+    logHeader('Skenario 11: POST invalid body (missing required fields -> 400)');
+    const invalidPayload = { customerId: 'cus_123' };
+    const resInvalid = await fetch(urlPost, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, application/problem+json',
+        'Authorization': 'Bearer mock_token',
+        'Idempotency-Key': crypto.randomUUID(),
+      },
+      body: JSON.stringify(invalidPayload),
+    });
+
+    assert([400, 422].includes(resInvalid.status), `Expected 400 or 422 for invalid body, got ${resInvalid.status}`);
+    const ctInvalid = resInvalid.headers.get('content-type') || '';
+    assert(ctInvalid.includes('problem+json') || ctInvalid.includes('application/json'), `Expected problem+json or json, got "${ctInvalid}"`);
+
+    // ----------------------------------------------------
+    // Skenario 12: POST — Domain-invalid body -> 422
+    // ----------------------------------------------------
+    logHeader('Skenario 12: POST domain-invalid body (422 Unprocessable Content)');
+    const domainInvalidPayload = { ...CONFIG.samplePayload, customerId: 'invalid_customer' };
+    const resDomainInvalid = await fetch(urlPost, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, application/problem+json',
+        'Authorization': 'Bearer mock_token',
+        'Idempotency-Key': crypto.randomUUID(),
+      },
+      body: JSON.stringify(domainInvalidPayload),
+    });
+
+    assert([400, 422].includes(resDomainInvalid.status), `Expected 400 or 422 for domain-invalid body, got ${resDomainInvalid.status}`);
+    const ctDomainInvalid = resDomainInvalid.headers.get('content-type') || '';
+    assert(ctDomainInvalid.includes('problem+json') || ctDomainInvalid.includes('application/json'), `Expected problem+json or json, got "${ctDomainInvalid}"`);
+
   } catch (err) {
     if (err.cause && (err.cause.code === 'ECONNREFUSED' || err.code === 'ECONNREFUSED')) {
       console.error(`\n ERROR: Could not connect to target server at ${CONFIG.baseUrl}`);

@@ -23,7 +23,7 @@ curl -i -X GET "${BASE_URL}${ENDPOINT_COLLECTION}?status=completed" \
   -H "Accept: application/json"
 echo
 
-IDEMPOTENCY_KEY="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "123e4567-e89b-12d3-a456-426614174000")"
+IDEMPOTENCY_KEY="$(node -e "console.log(require('crypto').randomUUID())" 2>/dev/null || echo "123e4567-e89b-42d3-a456-426614174000")"
 
 echo "[Scenario 3] POST Unsafe WITH Idempotency-Key (${IDEMPOTENCY_KEY})"
 curl -i -X POST "${BASE_URL}${ENDPOINT_CREATE}" \

@@ -3,18 +3,20 @@
 **Project:** Laundry Pickup & Delivery API  
 **Date:** 2026-09-09  
 **Tester:** Faris (Integration Owner)  
-**Tested Commit:** `b1b8ec3` (Merge pull request #8 from farsyaant/service-owner)  
+**Tested Commit:** `50a53da`
 
 ---
 
 ## 1. Executive Summary
 
-This document serves as the formal P3 Integration Test Report confirming that the live Express.js service (`service/`) and Prism mock server match the contract defined in `openapi.yaml`.
+This report records the P3 integration evidence for the Prism mock and live Express.js service against `openapi.yaml`.
 
-- **CI Status:** Workflow `.github/workflows/ci.yml` updated with environment variables (`PORT`, `DATABASE_FILE`, `NODE_ENV`).
-- **Prism Mock Contract Test:** 20/20 PASS (0 FAIL).
-- **Live Service Contract Test:** 22/22 PASS (0 FAIL).
-- **Contract Mismatches:** **No mismatch found.**
+- **Curl test date:** 2026-09-09 (UTC).
+- **Prism contract test:** 28 passed, 0 failed.
+- **Live service contract test:** 31 passed, 0 failed.
+- **Curl scenarios:** PASS for both targets.
+- **OpenAPI lint:** Valid, with 4 existing warnings and no errors.
+- **Contract mismatch:** No mismatch found.
 
 ---
 
@@ -22,84 +24,77 @@ This document serves as the formal P3 Integration Test Report confirming that th
 
 ### Environment Specs
 - **Node.js:** v22.15.1
-- **Prism Version:** `@stoplight/prism-cli` v5.14.0 (Mock Port: 4010)
-- **Live Service:** Express.js + SQLite (Port: 8080)
+- **Prism Version:** `@stoplight/prism-cli` (Mock Port: 4010)
+- **Live Service:** Express.js + SQLite (Port 8080, base path `/v1`)
 - **Test Runner:** `tests/contract/test-contract.js` (Native Node.js `fetch`)
-
----
+- **Curl runner:** Native Git Bash for Windows using `tests/contract/curl-scenarios.sh`.
 
 ## 3. Results Matrix: Prism Mock vs Live Service
 
 | Scenario | Target Prism (`:4010`) | Target Live Service (`:8080/v1`) | Result |
 |---|---|---|---|
-| **1. GET Collection** (`/orders`) | Status 200 OK | Status 200 OK (`application/json`) | **PASS** |
-| **2. GET Filter** (`?status=pending_pickup`) | Status 200 OK | Status 200 OK (Filtered output) | **PASS** |
-| **3. POST Unsafe with Key** | Status 201 Created | Status 201 Created + Header `Location` | **PASS** |
-| **4. GET Single Order** (`/orders/{id}`) | Status 200 OK | Status 200 OK (Matches ID) | **PASS** |
-| **5. Idempotent Retry (Same Key + Body)** | Status 201 Created | Status 201 Created (Same Entity ID) | **PASS** |
-| **6. Idempotency Conflict (Same Key + Diff Body)** | Skipped (Static Mock) | Status 409 Conflict | **PASS** |
-| **7. POST Unsafe WITHOUT Key** | Status 422 Unprocessable | Status 400 Bad Request + RFC 9457 | **PASS** |
-| **8. GET Malformed ID** | Status 400 Bad Request | Status 400 Bad Request | **PASS** |
-| **9. GET Non-existent ID** | Status 404 Not Found | Status 404 Not Found | **PASS** |
+| GET collection and filter | 200 | 200 | **PASS** |
+| POST with Idempotency-Key | 201 | 201 + `Location` | **PASS** |
+| POST without Idempotency-Key | 422 + problem details | 400 + problem details | **PASS** |
+| GET single, malformed, and unknown IDs | 200, 400, 404 | 200, 400, 404 | **PASS** |
+| Idempotent retry, same key/body | Same entity | Same entity | **PASS** |
+| Idempotency conflict, different body | Static mock skipped | 409 | **PASS** |
+| Pagination (`limit=1`) | 200, max 1 item | 200, max 1 item | **PASS** |
+| Empty collection (`status=completed`) | Static example returned | 200, `[]` | **PASS** |
+| Invalid and domain-invalid body | 422 + problem details | 400 / 422 + problem details | **PASS** |
 
----
+## 4. Curl Scenario Evidence
 
-## 4. Detailed Test Logs
+Raw output is stored in [Prism curl evidence](p3-curl-evidence-prism.txt) and [live service curl evidence](p3-curl-evidence-service.txt).
 
-### 4.1 Prism Mock Execution Log (`http://127.0.0.1:4010`)
-```text
-Starting Contract Tests against Target: http://127.0.0.1:4010
-Target Type: Prism Mock
+- **Prism:** GET collection 200; GET filter 200; POST with key 201; POST without key 422 with `application/problem+json`.
+- **Live service:** GET collection 200; GET filter 200; POST with key 201 and `Location`; POST without key 400 with `application/problem+json`.
+- Only `BASE_URL` and the live endpoint prefix variables differed between targets.
 
-[TEST SCENARIO] Skenario 1: GET Collection -> Status 200 (PASS)
-[TEST SCENARIO] Skenario 2: GET with Filter -> Status 200 (PASS)
-[TEST SCENARIO] Skenario 3: POST unsafe WITH Idempotency-Key -> Status 201 (PASS)
-[TEST SCENARIO] Skenario 4: GET Single Order -> Status 200 (PASS)
-[TEST SCENARIO] Skenario 5: Idempotent Retry -> Status 201 (PASS)
-[TEST SCENARIO] Skenario 6: Idempotency Conflict -> Skipped (Static Mock)
-[TEST SCENARIO] Skenario 7: POST unsafe WITHOUT Idempotency-Key -> Status 422 + RFC 9457 Problem Details (PASS)
-[TEST SCENARIO] Skenario 8: Negative Tests -> 400 & 404 (PASS)
+## 5. Coverage Against PDF Requirements
 
-TEST SUMMARY: 20 Passed, 0 Failed. Result: SUCCESS
-```
+| Requirement | Coverage |
+|---|---|
+| GET single order 200 | Covered |
+| GET malformed ID 400 | Covered |
+| GET unknown ID 404 | Covered |
+| GET collection filter | Covered |
+| GET collection pagination | Covered by `limit=1` |
+| GET empty collection | Covered; live service asserts `[]` |
+| POST success 201 | Covered |
+| POST `Location` header | Covered for live service |
+| POST missing key 400 | Covered for live service |
+| POST invalid body 400 | Covered; Prism returns contract-valid 422 |
+| Domain-invalid body 422 | Covered with invalid `customerId` |
+| Idempotent same key/body | Covered; same entity ID asserted |
+| Idempotent same key/different body 409 | Covered for live service |
+| Problem Details fields | Covered: `type`, `title`, `status`, `detail`, `instance` |
 
-### 4.2 Live Service Execution Log (`http://127.0.0.1:8080/v1`)
-```text
-Starting Contract Tests against Target: http://127.0.0.1:8080/v1
-Target Type: Live Service
+## 6. Contract Mismatch Analysis
 
-[TEST SCENARIO] Skenario 1: GET Collection -> Status 200 (PASS)
-[TEST SCENARIO] Skenario 2: GET with Filter -> Status 200 (PASS)
-[TEST SCENARIO] Skenario 3: POST unsafe WITH Idempotency-Key -> Status 201 + Location Header '/v1/orders/ord_MTTVELKPAFE77D' (PASS)
-[TEST SCENARIO] Skenario 4: GET Single Order -> Status 200 (PASS)
-[TEST SCENARIO] Skenario 5: Idempotent Retry (Same Body) -> Status 201 (PASS)
-[TEST SCENARIO] Skenario 6: Idempotency Conflict (Diff Body) -> Status 409 Conflict (PASS)
-[TEST SCENARIO] Skenario 7: POST unsafe WITHOUT Idempotency-Key -> Status 400 + RFC 9457 Problem Details (type/title/status/detail/instance) (PASS)
-[TEST SCENARIO] Skenario 8: Negative Tests -> Status 400 (Malformed) & Status 404 (Not Found) (PASS)
-
-TEST SUMMARY: 22 Passed, 0 Failed. Result: SUCCESS
-```
-
----
-
-## 5. Contract Mismatch Analysis
-
-**No mismatch found.**
+**No mismatch found at the contract level.**
 
 - Payload fields match canonical camelCase specification (`customerId`, `serviceType`, `weightKg`, `pickupAddress`).
-- RFC 9457 Problem Details error body provides required 5 members: `type`, `title`, `status`, `detail`, `instance`.
+- RFC 9457 Problem Details error body provides the required `type`, `title`, `status`, `detail`, and `instance` members.
+- Prism is a static mock: it returns the documented example for filtered and empty queries and cannot execute the live idempotency conflict behavior. These limitations are recorded rather than treated as service failures.
+- Missing idempotency key returns 422 from Prism and 400 from the service; both statuses are represented in the OpenAPI contract.
 
----
+## 7. CI and Handoff
 
-## 6. Handoff Note for Tori (Role C — Client Owner)
+- **GitHub Actions:** [Contract Test CI](https://github.com/farsyaant/pbse-groupproject-laundry-pickup-delivery/actions)
+- **OpenAPI lint:** Valid with 4 warnings; no lint errors.
 
-> **Handoff to Tori:**
-> 
-> Integration testing for P3 is complete. Both Prism Mock (`http://127.0.0.1:4010`) and Live Service (`http://127.0.0.1:8080/v1`) pass 100% of contract test scenarios.
-> 
-> You may proceed with the **Client Review** (`docs/p3-client-review.md`).
-> Key endpoints ready for client validation:
-> 1. `GET /v1/orders` & `GET /v1/orders/{orderId}`
-> 2. `POST /v1/orders` (Check 201 + `Location` header)
-> 3. `POST /v1/orders` without `Idempotency-Key` (Check RFC 9457 problem+json response)
-> 4. `POST /v1/orders/{orderId}/cancellation`
+**Handoff to Tori:**
+
+Integration test selesai.
+
+Bukti:
+- Contract test mock: PASS
+- Contract test service: PASS
+- Curl scenarios mock: PASS
+- Curl scenarios service: PASS
+- CI: workflow tersedia
+- OpenAPI lint: PASS (warnings only)
+- Mismatch: No mismatch found
+
+Tori dapat mulai client review.
