@@ -1,0 +1,208 @@
+HTTP/2 200 
+date: Wed, 09 Sep 2026 22:43:47 GMT
+content-type: application/json; charset=utf-8
+content-length: 248
+etag: W/"f8-fPdeo6830P2QxesrZGRxmGw9jVE"
+cf-cache-status: DYNAMIC
+speculation-rules: "/cdn-cgi/speculation"
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=z9Tx55hta4U7HLaEXQYOmeY4JU9fqa64AAqlHaf1Nne31iXZ%2FhKJCMAct9iXSUPFDxbeFuqmq6KBEkMtTQcv%2BIeLetU7p%2FEBYhZfaais2lfd5Q74CLStTpFSDHfqmG5ZPWT2PX4%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a389b6bcdd0cfdce-SIN
+alt-svc: h3=":443"; ma=86400
+
+{"id":"ord_MTUAXUC114063A","customerId":"cus_01HZX2Y1AB","serviceType":"wash_fold","weightKg":5.5,"pickupAddress":"Jl. Merdeka No. 10, Jakarta","status":"pending_pickup","createdAt":"2026-09-09T16:17:38.257Z","updatedAt":"2026-09-09T16:17:38.257Z"}=== 2. GET collection ===
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   499  100   499    0     0   3338      0 --:--:-- --:--:-- --:--:--  3348
+HTTP/2 200 
+date: Wed, 09 Sep 2026 22:46:04 GMT
+content-type: application/json; charset=utf-8
+content-length: 499
+etag: W/"1f3-lOnQyyxRtgtmN8avrwKdK7G4P60"
+cf-cache-status: DYNAMIC
+speculation-rules: "/cdn-cgi/speculation"
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=YhzQ9MsRKZnBC2X3eBWUrBDzYca%2BTVUGHEkCv9ZxxtxNflER788hvGXoQt0NX6eCoJbpZATPwEyUZArQf9VyH6k8nwqwxqxfBaCQuOLwdmMLZ8jhsaGS7LwzfT5BrYHajOAJfAk%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a389ba18ae35c691-SIN
+alt-svc: h3=":443"; ma=86400
+
+[{"id":"ord_MTUAXUC114063A","customerId":"cus_01HZX2Y1AB","serviceType":"wash_fold","weightKg":5.5,"pickupAddress":"Jl. Merdeka No. 10, Jakarta","status":"pending_pickup","createdAt":"2026-09-09T16:17:38.257Z","updatedAt":"2026-09-09T16:17:38.257Z"},{"id":"ord_MTUAZAHDE5DAB2","customerId":"cus_01HZX2Y1AB","serviceType":"wash_fold","weightKg":5.5,"pickupAddress":"Jl. Merdeka No. 10, Jakarta","status":"pending_pickup","createdAt":"2026-09-09T16:18:45.841Z","updatedAt":"2026-09-09T16:18:45.841Z"}]
+=== 3. Filter status ===
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   499  100   499    0     0   2997      0 --:--:-- --:--:-- --:--:--  3006
+HTTP/2 200 
+date: Wed, 09 Sep 2026 22:46:17 GMT
+content-type: application/json; charset=utf-8
+content-length: 499
+etag: W/"1f3-lOnQyyxRtgtmN8avrwKdK7G4P60"
+cf-cache-status: DYNAMIC
+speculation-rules: "/cdn-cgi/speculation"
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=8s55ovmjNzFa5%2FwqiKWIM3l9nyEcQj%2BvUztB42tbaLrDToTDWRpV2XfdgJjVbNhvwxV81rRMc78fxtDkOmVIO0k%2B16WP2eZrCBA3kLmj27g5OBPUNeIMdAgWKhz3oVSOgRvhKuE%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a389ba641d884908-SIN
+alt-svc: h3=":443"; ma=86400
+
+[{"id":"ord_MTUAXUC114063A","customerId":"cus_01HZX2Y1AB","serviceType":"wash_fold","weightKg":5.5,"pickupAddress":"Jl. Merdeka No. 10, Jakarta","status":"pending_pickup","createdAt":"2026-09-09T16:17:38.257Z","updatedAt":"2026-09-09T16:17:38.257Z"},{"id":"ord_MTUAZAHDE5DAB2","customerId":"cus_01HZX2Y1AB","serviceType":"wash_fold","weightKg":5.5,"pickupAddress":"Jl. Merdeka No. 10, Jakarta","status":"pending_pickup","createdAt":"2026-09-09T16:18:45.841Z","updatedAt":"2026-09-09T16:18:45.841Z"}]
+=== 4. Pagination (limit) ===
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   499  100   499    0     0   3128      0 --:--:-- --:--:-- --:--:--  3138
+HTTP/2 200 
+date: Wed, 09 Sep 2026 22:46:27 GMT
+content-type: application/json; charset=utf-8
+content-length: 499
+etag: W/"1f3-lOnQyyxRtgtmN8avrwKdK7G4P60"
+cf-cache-status: DYNAMIC
+speculation-rules: "/cdn-cgi/speculation"
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=yEIgIGigMcnqDo8ndyms9wdM%2FEFBLTgY1LWYWtMzXlWkW2e1RZPWZfluVpNf8Q6GzYvYi%2FZlIwOTEgTSYy0iaMSY5sJxnlHYxaOLvSMA%2FubExGr9b3XKcVe4a0hWX7zq4Gjtook%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a389baa7fb15fd13-SIN
+alt-svc: h3=":443"; ma=86400
+
+[{"id":"ord_MTUAXUC114063A","customerId":"cus_01HZX2Y1AB","serviceType":"wash_fold","weightKg":5.5,"pickupAddress":"Jl. Merdeka No. 10, Jakarta","status":"pending_pickup","createdAt":"2026-09-09T16:17:38.257Z","updatedAt":"2026-09-09T16:17:38.257Z"},{"id":"ord_MTUAZAHDE5DAB2","customerId":"cus_01HZX2Y1AB","serviceType":"wash_fold","weightKg":5.5,"pickupAddress":"Jl. Merdeka No. 10, Jakarta","status":"pending_pickup","createdAt":"2026-09-09T16:18:45.841Z","updatedAt":"2026-09-09T16:18:45.841Z"}]
+=== 5. POST dengan Idempotency-Key ===
+Key used: 6A3A9B32-A743-4194-9EFD-2F24754471A6
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   340  100   235  100   105   1116    499 --:--:-- --:--:-- --:--:--  1619
+HTTP/2 201 
+date: Wed, 09 Sep 2026 22:46:36 GMT
+content-type: application/json; charset=utf-8
+content-length: 235
+etag: W/"eb-iLs1tmE3CCaRzi0bXDxNISV094E"
+location: /v1/orders/ord_MTUOU21605C6D9
+cf-cache-status: DYNAMIC
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=hHZ3BMgJtCvtWv8Zdc7ZlRB0MeQkRJokP2FjFXeAkESfJ5RcC4PdTrwAzzCt1xiUuD7Rq2ERAwEMfkE1fHJgNR6LVJCc3Gax3QSRjZpX3YtWPye00EruhELXFiQ4k8IodHEsIpU%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a389badc3d3a5fde-SIN
+alt-svc: h3=":443"; ma=86400
+
+{"id":"ord_MTUOU21605C6D9","customerId":"cus_test001","serviceType":"wash_fold","weightKg":3.5,"pickupAddress":"Jl. Testing No. 1","status":"pending_pickup","createdAt":"2026-09-09T22:46:36.234Z","updatedAt":"2026-09-09T22:46:36.234Z"}
+=== 6. POST tanpa Idempotency-Key ===
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   265  100   160  100   105    814    534 --:--:-- --:--:-- --:--:--  1352
+HTTP/2 400 
+date: Wed, 09 Sep 2026 22:46:47 GMT
+content-type: application/problem+json; charset=utf-8
+content-length: 160
+etag: W/"a0-lhaLPm+rurp1wVS0qrlS0wi9+UQ"
+cf-cache-status: DYNAMIC
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=6Pgyw%2B45m%2F0OKEDH30Mh7Mh9mVMjxzZccWcAMJ%2F8dkkKudo7w26wmFt3oPbAdydvVU8McO3N82flWjH4bVOKpQ2rSJo6yX%2FJxc1v8ku2H2JASwz9yP3cvclsKAXOMUcNjmHB5iM%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a389bb22fbf8f8f6-SIN
+alt-svc: h3=":443"; ma=86400
+
+{"type":"https://api.example.com/problems/bad-request","title":"Bad request","status":400,"detail":"Idempotency-Key header is required","instance":"/v1/orders"}
+=== 7. Malformed JSON ===
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   200  100   157  100    43    517    141 --:--:-- --:--:-- --:--:--   657
+HTTP/2 400 
+date: Wed, 09 Sep 2026 22:46:55 GMT
+content-type: application/problem+json; charset=utf-8
+content-length: 157
+etag: W/"9d-D0cEqa4krzJAhpZwXMv4jrzXiCU"
+cf-cache-status: DYNAMIC
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=eMGnvmzVs8NvdAEvCOWFXW3q0ouBtDNvR%2BrLeFay%2Bwwt0ZZmE%2BH%2F32ehoSv3ZhCMdv%2FBNvEueWrEWUBZP7NF8ekNJQpkgPgrdSV%2BdcFxNzgkv4gRdDZYVFm5lEJcsFPhGP2wijQ%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a389bb54fb569d24-SIN
+alt-svc: h3=":443"; ma=86400
+
+{"type":"https://api.example.com/problems/bad-request","title":"Bad request","status":400,"detail":"Malformed JSON in request body.","instance":"/v1/orders"}
+=== 8. Order tidak ditemukan ===
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   192  100   192    0     0   1296      0 --:--:-- --:--:-- --:--:--  1306
+HTTP/2 404 
+date: Wed, 09 Sep 2026 22:47:04 GMT
+content-type: application/problem+json; charset=utf-8
+content-length: 192
+etag: W/"c0-KF+8ZLoDSJiEKoNRju6frAu+Xgw"
+cf-cache-status: DYNAMIC
+speculation-rules: "/cdn-cgi/speculation"
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=fk%2Fq7X%2B7qM7nWBADjU2s8%2BqYdRCA6yNm8O9nzFV3u0FPsC09XBCEil774NZiYFA%2BT4CvX9%2FRUCC02iS%2FDn96qZfkEo8d%2BCtTO%2BDTLuXE4FhRfwSTc%2BBDQqKIlWnKgmuL4zgZJaw%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a389bb89df6f1f6e-SIN
+alt-svc: h3=":443"; ma=86400
+
+{"type":"https://api.example.com/problems/not-found","title":"Resource not found","status":404,"detail":"Order ord_doesnotexist999 does not exist.","instance":"/v1/orders/ord_doesnotexist999"}
+=== 9. Idempotency conflict (key sama, body beda) ===
+Key used: 893E0743-A0C3-47CD-B9B8-97EF782F83C0
+--- Request pertama (body A) ---
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   306  100   218  100    88   1122    453 --:--:-- --:--:-- --:--:--  1577
+HTTP/2 201 
+date: Wed, 09 Sep 2026 22:47:13 GMT
+content-type: application/json; charset=utf-8
+content-length: 218
+etag: W/"da-0outIepDMAYu70Mi8ceq0khv52o"
+location: /v1/orders/ord_MTUOUUE653E7A8
+cf-cache-status: DYNAMIC
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=FjZ8qPTQxygp1V9kPg6pja51eNXI%2BzYZPQLoFrN7VtPTeyJsHE2XOFOVgPJilpn0flgEmAEYd1rSDfqvzzGHpxwYg3wCPCcIlHydNaMglVz3qluOBVqJFf%2FaTSpovQUVy6sOVto%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a389bbc1dee2fd39-SIN
+alt-svc: h3=":443"; ma=86400
+
+{"id":"ord_MTUOUUE653E7A8","customerId":"cus_A","serviceType":"wash_fold","weightKg":2,"pickupAddress":"Alamat A","status":"pending_pickup","createdAt":"2026-09-09T22:47:12.990Z","updatedAt":"2026-09-09T22:47:12.990Z"}--- Request kedua (body B, key sama) ---
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   291  100   203  100    88    829    359 --:--:-- --:--:-- --:--:--  1192
+HTTP/2 409 
+date: Wed, 09 Sep 2026 22:47:13 GMT
+content-type: application/problem+json; charset=utf-8
+content-length: 203
+etag: W/"cb-5HQ/+oZl+W5ZLd2hdnhEipgZD/0"
+cf-cache-status: DYNAMIC
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=2ueVC%2BaU8kA%2Fwhd19pQ%2FR5ju67Wrhmw5HAd%2FHeFgkEto0SpG7K%2Fe%2BS6Bg9pLSi2GQ39f2uBPt7yVN2UihpVP0qor0YJIo8PFNT7JsDXkup2ZTFfRPypj%2Fl0U72tHoroCCyea8n0%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a389bbc32a7dde6c-SIN
+alt-svc: h3=":443"; ma=86400
+
+{"type":"https://api.example.com/problems/idempotency-conflict","title":"Idempotency key conflict","status":409,"detail":"Idempotency-Key was reused with different request data.","instance":"/v1/orders"}
+=== 10. Cancellation ===
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   199  100   161  100    38    458    108 --:--:-- --:--:-- --:--:--   566
+HTTP/2 200 
+date: Wed, 09 Sep 2026 22:47:23 GMT
+content-type: application/json; charset=utf-8
+content-length: 161
+etag: W/"a1-UtoqpcGM4rlf7cD7/e7cAxcIY54"
+cf-cache-status: DYNAMIC
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=aNeqsSZxLjnixKxvJwN7Tp58WxwWlknMFiZD3WPWkDl2ftx1McIEi8JTQIZ9VBPhiCppSp7Ms94TfyXe7ffg9EC2Ea3qqjodfq00e4AUcXzaAQSZjt9trNLPQfES1z4nt%2FJ4Ayc%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a389bc05ff1af8c6-SIN
+alt-svc: h3=":443"; ma=86400
+
+{"id":"can_MTUOV2ST8A0B67","orderId":"ord_MTUAXUC114063A","reason":"Customer requested cancellation","status":"completed","createdAt":"2026-09-09T22:47:23.883Z"}
+=== 11. Invalid body (422) ===
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   351  100   261  100    90   1369    472 --:--:-- --:--:-- --:--:--  1837
+HTTP/2 422 
+date: Wed, 09 Sep 2026 22:48:48 GMT
+content-type: application/problem+json; charset=utf-8
+content-length: 261
+etag: W/"105-rFSg2ci5BIIQqvyJcMkRTZ1hkZM"
+cf-cache-status: DYNAMIC
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=0ruLwO7nyQMmeBkuWPVzgCtXmKVY33%2FHBrULQZggIdTm%2FpDErindUXPDI%2Fzqw0WV05%2BzRsFFeh9W3goSVFHPvA8Gz2TtkhVIPrt%2FD%2FO9L8j4ux8K60nhWOVZfHlMdzEZcplpLIU%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a389be165c6ae0ab-SIN
+alt-svc: h3=":443"; ma=86400
+
+{"type":"https://api.example.com/problems/validation-failed","title":"Validation failed","status":422,"detail":"serviceType must be one of: wash_fold, dry_clean, iron_only; weightKg must be at least 0.1; pickupAddress must not be empty","instance":"/v1/orders"}

@@ -10,9 +10,18 @@ The system is expected to support at least three actors with different access ri
 
 ## Decision
 
-The team selected a workflow spanning the full order lifecycle — from order creation through pickup, processing, and completion — rather than the narrower Pickup Workflow (Alternative 2) originally favored for scope control. This decision was made because the team determined that demonstrating the complete state machine, including the assignment and cancellation boundary, provided clearer material for interface design without materially increasing implementation complexity within this assignment's timeframe.
+The team selected a workflow spanning the full order lifecycle — from
+order creation through pickup, processing, and completion — rather than
+the narrower Pickup Workflow (Alternative 2) originally favored for
+scope control. This decision was made because the team determined that
+demonstrating the complete state machine, including the assignment and
+cancellation boundary, provided clearer material for interface design
+without materially increasing implementation complexity within this
+assignment's timeframe.
 
-The workflow's states are: `pending_pickup`, `ready_for_pickup`, `confirmed`, `assigned`, `picked_up`, `processing`, `completed`, and `cancelled`. Full detail is documented in `docs/domain.md`.
+The workflow's states are: `pending_pickup`, `ready_for_pickup`,
+`confirmed`, `assigned`, `picked_up`, `processing`, `completed`, and
+`cancelled`. Full detail is documented in `docs/domain.md`.
 
 ## Alternatives Considered
 
@@ -20,7 +29,10 @@ The workflow's states are: `pending_pickup`, `ready_for_pickup`, `confirmed`, `a
 
 The system could model the complete lifecycle from order creation through pickup, washing, delivery, and completion.
 
-Initially deprioritized due to concerns about state and interaction complexity for a small contract-first assignment. However, this concern was revisited and ultimately outweighed by the benefits of demonstrating the complete state machine — see Decision above.
+Initially deprioritized due to concerns about state and interaction
+complexity for a small contract-first assignment. However, this
+concern was revisited and ultimately outweighed by the benefits of
+demonstrating the complete state machine — see Decision above.
 
 ### Alternative 2 — Laundry Pickup Workflow
 
@@ -50,4 +62,6 @@ Detailed resource modeling decisions are documented in `docs/resource-modeling.m
 
 ## Status
 
-Final — workflow and domain scope confirmed by the Client Owner and the team. Full detail in `docs/domain.md`, `docs/client-taxonomy.md`, and `docs/business-rules.md`.
+Final — workflow and domain scope confirmed by the Client Owner and the
+team. Full detail in `docs/domain.md`, `docs/client-taxonomy.md`, and
+`docs/business-rules.md`.
