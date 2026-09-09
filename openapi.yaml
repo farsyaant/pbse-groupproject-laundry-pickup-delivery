@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Laundry Pickup & Delivery API
-  version: 0.1.0
+  version: 0.2.0
   license:
     name: Academic project
   description: >-
@@ -13,8 +13,9 @@ servers:
     description: Production API
   - url: http://localhost:8080/v1
     description: Local service
-security:
-  - bearerAuth: []
+# Authentication is intentionally deferred for Session 3. Authorization remains
+# a service-layer responsibility and can be added in a later compatible contract.
+security: []
 tags:
   - name: Orders
     description: Laundry order lifecycle
@@ -81,6 +82,12 @@ paths:
       responses:
         '201':
           description: Order created
+          headers:
+            Location:
+              description: URL of the newly created order.
+              schema:
+                type: string
+                format: uri-reference
           content:
             application/json:
               schema:
@@ -134,6 +141,8 @@ paths:
                 status: pending_pickup
                 createdAt: '2026-09-02T10:00:00Z'
                 updatedAt: '2026-09-02T10:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -302,7 +311,8 @@ components:
       schema:
         type: string
         format: uuid
-        example: 123e4567-e89b-12d3-a456-426614174000
+        pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+        example: 423e4567-e89b-42d3-a456-426614174000
 
   schemas:
     Order:
@@ -311,9 +321,11 @@ components:
       properties:
         id:
           type: string
+          pattern: '^ord_[A-Za-z0-9]+$'
           example: ord_01HZX2Y5K7
         customerId:
           type: string
+          pattern: '^cus_[A-Za-z0-9]+$'
           example: cus_01HZX2Y1AB
         serviceType:
           type: string
@@ -346,6 +358,7 @@ components:
       properties:
         customerId:
           type: string
+          pattern: '^cus_[A-Za-z0-9]+$'
           example: cus_01HZX2Y1AB
         serviceType:
           type: string
@@ -365,12 +378,15 @@ components:
       properties:
         id:
           type: string
+          pattern: '^pku_[A-Za-z0-9]+$'
           example: pku_01HZX2Z8K9
         orderId:
           type: string
+          pattern: '^ord_[A-Za-z0-9]+$'
           example: ord_01HZX2Y5K7
         driverId:
           type: string
+          pattern: '^drv_[A-Za-z0-9]+$'
           example: drv_01HZX2Z1AA
         scheduledAt:
           type: string
@@ -389,9 +405,11 @@ components:
       properties:
         id:
           type: string
+          pattern: '^can_[A-Za-z0-9]+$'
           example: can_01HZX30D2Q
         orderId:
           type: string
+          pattern: '^ord_[A-Za-z0-9]+$'
           example: ord_01HZX2Y5K7
         reason:
           type: string

@@ -1,0 +1,6 @@
+*.log
+node_modules
+service/db/*.sqlite
+service/db/*.sqlite-*
+*.err
+.env

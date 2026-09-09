@@ -58,11 +58,7 @@ Unsafe operations must define their idempotency behavior explicitly.
 
 Business-rule violations must be represented using appropriate Problem Details responses rather than relying solely on client-side validation.
 
-The final resource model and endpoint structure will be determined by the Contract Owner after the domain workflow and business rules have been agreed upon.
-
-Detailed resource modeling decisions are documented in
-`docs/resource-modeling.md`, and the API compatibility policy is
-documented in `docs/compatibility.md`.
+Detailed resource modeling decisions are documented in `docs/resource-modeling.md`, and the API compatibility policy is documented in `docs/compatibility.md`.
 
 ## Status
 

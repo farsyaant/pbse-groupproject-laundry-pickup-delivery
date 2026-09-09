@@ -1,0 +1,49 @@
+name: Contract Test CI
+
+on:
+  push:
+    branches: [ main, integration-owner ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  contract-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install service dependencies
+        run: |
+          cd service
+          pnpm install
+
+      - name: Start Laundry Service
+        env:
+          PORT: 8080
+          DATABASE_FILE: ./db/laundry.sqlite
+          NODE_ENV: test
+        run: |
+          cd service
+          node src/app.js &
+          echo "Waiting for service to be ready..."
+          npx wait-on http://127.0.0.1:8080/health --timeout 30000
+
+      - name: Run Contract Tests against Live Service
+        run: |
+          BASE_URL="http://127.0.0.1:8080/v1" node tests/contract/test-contract.js
+
+      - name: Run Redocly OpenAPI Lint
+        run: |
+          pnpm --package=@redocly/cli dlx redocly lint openapi.yaml

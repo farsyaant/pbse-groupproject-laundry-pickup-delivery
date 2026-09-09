@@ -1,5 +1,13 @@
 # Contract changelog
 
+## 2026-09-08
+
+- Finalized Session 3 contract behavior for unauthenticated local implementation.
+- Added `Location` header to `POST /orders` response `201`.
+- Added malformed identifier response `400` to `GET /orders/{orderId}`.
+- Enforced UUID v4 format for `Idempotency-Key`.
+- Added identifier patterns to resource schemas.
+
 ## 2026-09-02
 
 - Finalized resource modeling for orders, pickups, and cancellations.

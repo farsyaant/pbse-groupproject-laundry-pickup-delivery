@@ -1,0 +1,105 @@
+﻿Starting Contract Tests against Target: http://127.0.0.1:8080/v1
+Target Type: Live Service
+Timestamp: 2026-09-09T10:21:34.740Z
+
+==================================================
+ [TEST SCENARIO] Skenario 1: GET Collection (Status 200 & valid JSON array/collection)
+==================================================
+Request: GET http://127.0.0.1:8080/v1/orders
+  PASS: Expected status 200, got 200
+  PASS: Expected Content-Type application/json, got "application/json; charset=utf-8"
+  PASS: Expected JSON array or object collection
+Response preview: [{"id":"ord_MTTRQFNS14FE2B","customerId":"cus_01HZX2Y1AB","serviceType":"wash_fold","weightKg":5.5,"pickupAddress":"Jl. Merdeka No. 10, Jakarta","stat
+
+==================================================
+ [TEST SCENARIO] Skenario 2: GET with Filter (status=pending_pickup)
+==================================================
+Request: GET http://127.0.0.1:8080/v1/orders?status=pending_pickup
+  PASS: Expected status 200, got 200
+  PASS: Expected valid JSON response for filtered request
+Response preview: [{"id":"ord_MTTRQFNS14FE2B","customerId":"cus_01HZX2Y1AB","serviceType":"wash_fold","weightKg":5.5,"pickupAddress":"Jl. Merdeka No. 10, Jakarta","stat
+
+==================================================
+ [TEST SCENARIO] Skenario 3: POST unsafe WITH Idempotency-Key (Status 201 Created & Location Header)
+==================================================
+Request: POST http://127.0.0.1:8080/v1/orders
+Header Idempotency-Key: 63e415e7-5135-458f-8f48-81866cc99082
+  PASS: Expected status 201 or 200, got 201
+  PASS: Expected Location header in 201 response, got "/v1/orders/ord_MTTY7Y6F1FCFCB"
+  PASS: Expected returned Order object with 'id' field
+Created Order ID: ord_MTTY7Y6F1FCFCB
+
+==================================================
+ [TEST SCENARIO] Skenario 4: GET Single Order (ord_MTTY7Y6F1FCFCB)
+==================================================
+Request: GET http://127.0.0.1:8080/v1/orders/ord_MTTY7Y6F1FCFCB
+  PASS: Expected status 200, got 200
+  PASS: Expected order id 'ord_MTTY7Y6F1FCFCB', got 'ord_MTTY7Y6F1FCFCB'
+
+==================================================
+ [TEST SCENARIO] Skenario 5: Idempotent Retry (Same Key + Same Body -> Same 201/200 Response)
+==================================================
+Re-sending POST http://127.0.0.1:8080/v1/orders with same key (63e415e7-5135-458f-8f48-81866cc99082)
+  PASS: Expected status 201/200 on retry, got 201
+  PASS: Expected same entity ID 'ord_MTTY7Y6F1FCFCB', got 'ord_MTTY7Y6F1FCFCB'
+
+==================================================
+ [TEST SCENARIO] Skenario 6: Idempotency Conflict (Same Key + Different Body -> 409 Conflict)
+==================================================
+  PASS: Expected status 409 Conflict for different body, got 409
+
+==================================================
+ [TEST SCENARIO] Skenario 7: POST unsafe WITHOUT Idempotency-Key (RFC 9457 Problem Details)
+==================================================
+Request: POST http://127.0.0.1:8080/v1/orders (No Idempotency-Key)
+  PASS: Expected rejection status 400, 409, or 422, got 400
+  PASS: Expected Content-Type application/problem+json, got "application/problem+json; charset=utf-8"
+  PASS: Error has 'type' field
+  PASS: Error has 'title' field
+  PASS: Error has 'status' field
+  PASS: Error has 'detail' field
+  PASS: Error has 'instance' field
+
+==================================================
+ [TEST SCENARIO] Skenario 8: Negative Tests (Malformed ID -> 400, Non-existent ID -> 404)
+==================================================
+  PASS: Expected 400/404/422 for malformed ID, got 400
+  PASS: Expected status 404 Not Found, got 404
+
+==================================================
+ [TEST SCENARIO] Skenario 9: GET Collection Pagination (limit=1)
+==================================================
+Request: GET http://127.0.0.1:8080/v1/orders?limit=1
+  PASS: Expected status 200, got 200
+  PASS: Expected paginated array with at most 1 item, got 1 items
+
+==================================================
+ [TEST SCENARIO] Skenario 10: GET Collection Empty Result (status=completed)
+==================================================
+Request: GET http://127.0.0.1:8080/v1/orders?status=completed
+  PASS: Expected status 200 for empty collection, got 200
+  PASS: Expected JSON array for empty collection, got object
+  PASS: Expected empty JSON array, got 0 items
+
+==================================================
+ [TEST SCENARIO] Skenario 11: POST invalid body (missing required fields -> 400)
+==================================================
+  PASS: Expected 400 or 422 for invalid body, got 400
+  PASS: Expected problem+json or json, got "application/problem+json; charset=utf-8"
+
+==================================================
+ [TEST SCENARIO] Skenario 12: POST domain-invalid body (422 Unprocessable Content)
+==================================================
+  PASS: Expected 400 or 422 for domain-invalid body, got 422
+  PASS: Expected problem+json or json, got "application/problem+json; charset=utf-8"
+
+==================================================
+ TEST SUMMARY
+==================================================
+ Total Passed: 31
+ Total Failed: 0
+ Result: SUCCESS
+==================================================
+
+
+
