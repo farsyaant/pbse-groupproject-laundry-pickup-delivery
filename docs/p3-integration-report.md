@@ -3,7 +3,7 @@
 **Project:** Laundry Pickup & Delivery API  
 **Date:** 2026-09-09  
 **Tester:** Faris (Integration Owner)  
-**Tested Commit:** `350dbd2`
+**Tested Commit:** `350dbd2` (service); workflow snapshot `cadf56a`
 
 ---
 
