@@ -9,6 +9,7 @@
   <a href="#-domain--alur-kerja">Domain</a> •
   <a href="#-struktur-repositori">Struktur</a> •
   <a href="#-menjalankan-mock-server">Mock Server</a> •
+  <a href="#-live-deployment-service-p3">Live Service</a> •
 </p>
 
 </div>
@@ -150,6 +151,18 @@ curl -i -X POST http://127.0.0.1:4010/orders \
 ```bash
 npx @redocly/cli lint openapi.yaml
 ```
+
+---
+
+## 🚀 Live Deployment Service (P3)
+
+Backend service aktif dan dapat diakses publik:
+- **Base URL:** `https://pbse.kevinio.my.id`
+- **Health Check:** `https://pbse.kevinio.my.id/health`
+- **Base API Path:** `https://pbse.kevinio.my.id/v1`
+- **Bukti Uji & Hasil Curl (Service Owner):** [`service/EVIDENCE.md`](service/EVIDENCE.md)
+- **Laporan Integrasi (Integration Owner):** [`docs/p3-integration-report.md`](docs/p3-integration-report.md)
+- **Review Klien (Client Owner):** [`docs/p3-client-review.md`](docs/p3-client-review.md)
 
 ---
 

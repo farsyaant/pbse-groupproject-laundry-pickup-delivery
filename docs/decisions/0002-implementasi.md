@@ -28,7 +28,12 @@ Session 3 memerlukan implementasi service yang mengikuti kontrak OpenAPI 0.2.0 u
 
 ## Hosting Provider
 
-Belum dipilih untuk P3.
+Self-hosted VPS (Ubuntu) oleh Kevin menggunakan Docker Compose dan Portainer untuk deployment.
+- **Reverse Proxy**: Traefik dengan SSL/TLS otomatis dari Let's Encrypt.
+- **Domain Publik**: `https://pbse.kevinio.my.id`
+- **Base API**: `https://pbse.kevinio.my.id/v1`
+- **Health Check**: `https://pbse.kevinio.my.id/health`
+- **Persistence**: Named volume `pbse_laundry_data` dipetakan ke container di `/app/service/db` sehingga database SQLite persisten dan tidak hilang saat container di-restart.
 
 ## Idempotency Storage
 

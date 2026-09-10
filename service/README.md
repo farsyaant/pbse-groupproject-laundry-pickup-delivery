@@ -65,6 +65,8 @@ Health check: `http://127.0.0.1:8080/health`
 | POST | `/v1/orders/{orderId}/cancellation` | selesai |
 | GET | `/v1/pickups` | tidak masuk scope P3 |
 
+Bukti pengujian curl dan JSON output lengkap dapat dilihat di [EVIDENCE.md](EVIDENCE.md).
+
 ## Contoh Request
 
 ### GET /health
