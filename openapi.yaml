@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Laundry Pickup & Delivery API
-  version: 0.2.0
+  version: 0.2.1
   license:
     name: Academic project
   description: >-
@@ -451,6 +451,12 @@ components:
           items:
             type: string
           example: [pending_pickup, ready_for_pickup, confirmed]
+        invalidFields:
+          type: array
+          description: Names of request fields that failed validation.
+          items:
+            type: string
+          example: [serviceType, weightKg]
 
   responses:
     BadRequest:

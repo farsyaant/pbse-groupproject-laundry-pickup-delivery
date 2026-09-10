@@ -32,7 +32,7 @@ function validateIdempotencyKey(key) {
 
 function validateCreateOrder(body) {
   if (!body || typeof body !== 'object') {
-    return { status: 400, errors: ['Request body must be a JSON object'] };
+    return { status: 400, errors: ['Request body must be a JSON object'], fields: [] };
   }
 
   const missing = [];
@@ -42,7 +42,7 @@ function validateCreateOrder(body) {
     missing.push('weightKg is required');
   if (body.pickupAddress === undefined)
     missing.push('pickupAddress is required');
-  if (missing.length) return { status: 400, errors: missing };
+  if (missing.length) return { status: 400, errors: missing, fields: missing.map((error) => error.split(' ')[0]) };
 
   const types = [];
   if (typeof body.customerId !== 'string')
@@ -53,7 +53,7 @@ function validateCreateOrder(body) {
     types.push('weightKg must be a number');
   if (typeof body.pickupAddress !== 'string')
     types.push('pickupAddress must be a string');
-  if (types.length) return { status: 400, errors: types };
+  if (types.length) return { status: 400, errors: types, fields: types.map((error) => error.split(' ')[0]) };
 
   const domain = [];
   if (!CUSTOMER_ID_RE.test(body.customerId))
@@ -65,7 +65,7 @@ function validateCreateOrder(body) {
   if (body.weightKg < 0.1) domain.push('weightKg must be at least 0.1');
   if (body.pickupAddress.trim().length === 0)
     domain.push('pickupAddress must not be empty');
-  if (domain.length) return { status: 422, errors: domain };
+  if (domain.length) return { status: 422, errors: domain, fields: [...new Set(domain.map((error) => error.split(' ')[0]))] };
 
   return null;
 }

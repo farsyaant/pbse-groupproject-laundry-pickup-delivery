@@ -151,3 +151,4 @@ curl http://127.0.0.1:8080/v1/orders/<order-id>
 
 - `GET /v1/pickups` belum diimplementasikan (tidak masuk scope P3).
 - Authentication/authorization belum diimplementasikan (deferred per kontrak).
+- `invalidFields` dikirim sebagai extension Problem Details pada error validasi request.

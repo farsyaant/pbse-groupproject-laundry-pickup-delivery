@@ -20,7 +20,7 @@ const BASE_URL = RAW_BASE_URL.replace(/\/+$/, '');
 
 const CONFIG = {
   baseUrl: BASE_URL,
-  isLiveService: BASE_URL.includes(':8080') || process.env.IS_LIVE === 'true',
+    isLiveService: BASE_URL.includes(':8080') || BASE_URL.includes('pbse.kevinio.my.id') || process.env.IS_LIVE === 'true',
   endpoints: {
     collection: process.env.ENDPOINT_COLLECTION || '/orders',
     filterParam: process.env.ENDPOINT_FILTER || 'status=pending_pickup',
@@ -120,7 +120,7 @@ async function runTests() {
       body: JSON.stringify(CONFIG.samplePayload),
     });
 
-    assert([200, 201].includes(res3.status), `Expected status 201 or 200, got ${res3.status}`);
+    assert(res3.status === 201, `Expected status 201, got ${res3.status}`);
     
     if (CONFIG.isLiveService && res3.status === 201) {
       const locationHeader = res3.headers.get('location');
@@ -168,7 +168,7 @@ async function runTests() {
       body: JSON.stringify(CONFIG.samplePayload),
     });
 
-    assert([200, 201].includes(resIdemSame.status), `Expected status 201/200 on retry, got ${resIdemSame.status}`);
+    assert(resIdemSame.status === 201, `Expected status 201 on retry, got ${resIdemSame.status}`);
     const dataIdemSame = await resIdemSame.json();
     assert(dataIdemSame.id === createdOrderId, `Expected same entity ID '${createdOrderId}', got '${dataIdemSame.id}'`);
 
@@ -211,7 +211,7 @@ async function runTests() {
       body: JSON.stringify(CONFIG.samplePayload),
     });
 
-    assert([400, 409, 422].includes(res7.status), `Expected rejection status 400, 409, or 422, got ${res7.status}`);
+    assert(res7.status === 400, `Expected rejection status 400, got ${res7.status}`);
     const contentType7 = res7.headers.get('content-type') || '';
     assert(contentType7.includes('application/problem+json'), `Expected Content-Type application/problem+json, got "${contentType7}"`);
 
@@ -230,7 +230,7 @@ async function runTests() {
     const resMalformed = await fetch(urlMalformed, {
       headers: { Accept: 'application/json', Authorization: 'Bearer mock_token' },
     });
-    assert([400, 404, 422].includes(resMalformed.status), `Expected 400/404/422 for malformed ID, got ${resMalformed.status}`);
+    assert(resMalformed.status === 400, `Expected 400 for malformed ID, got ${resMalformed.status}`);
 
     const urlNotFound = `${CONFIG.baseUrl}${CONFIG.endpoints.collection}/ord_0000000000`;
     const resNotFound = await fetch(urlNotFound, {
@@ -292,9 +292,11 @@ async function runTests() {
       body: JSON.stringify(invalidPayload),
     });
 
-    assert([400, 422].includes(resInvalid.status), `Expected 400 or 422 for invalid body, got ${resInvalid.status}`);
+    assert(resInvalid.status === 400, `Expected 400 for invalid body, got ${resInvalid.status}`);
     const ctInvalid = resInvalid.headers.get('content-type') || '';
-    assert(ctInvalid.includes('problem+json') || ctInvalid.includes('application/json'), `Expected problem+json or json, got "${ctInvalid}"`);
+    assert(ctInvalid.includes('problem+json'), `Expected problem+json, got "${ctInvalid}"`);
+    const invalidData = await resInvalid.json();
+    assert(Array.isArray(invalidData.invalidFields), `Invalid body error has 'invalidFields' field`);
 
     // ----------------------------------------------------
     // Skenario 12: POST — Domain-invalid body -> 422
@@ -312,9 +314,11 @@ async function runTests() {
       body: JSON.stringify(domainInvalidPayload),
     });
 
-    assert([400, 422].includes(resDomainInvalid.status), `Expected 400 or 422 for domain-invalid body, got ${resDomainInvalid.status}`);
+    assert(resDomainInvalid.status === 422, `Expected 422 for domain-invalid body, got ${resDomainInvalid.status}`);
     const ctDomainInvalid = resDomainInvalid.headers.get('content-type') || '';
-    assert(ctDomainInvalid.includes('problem+json') || ctDomainInvalid.includes('application/json'), `Expected problem+json or json, got "${ctDomainInvalid}"`);
+    assert(ctDomainInvalid.includes('problem+json'), `Expected problem+json, got "${ctDomainInvalid}"`);
+    const domainInvalidData = await resDomainInvalid.json();
+    assert(Array.isArray(domainInvalidData.invalidFields), `Domain validation error has 'invalidFields' field`);
 
   } catch (err) {
     if (err.cause && (err.cause.code === 'ECONNREFUSED' || err.code === 'ECONNREFUSED')) {

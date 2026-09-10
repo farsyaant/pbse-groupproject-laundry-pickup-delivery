@@ -3,7 +3,7 @@
 **Reviewer**: Tori (Client Owner)
 **Target**: https://pbse.kevinio.my.id
 **Tanggal**: 9 September 2026
-**Commit yang direview**: `f564ded4b1cdd9b7d24aa0629ce81511cca8c992`
+**Commit yang direview**: `pending-final-commit` (replace after commit)
 
 ## 1. Review Kontrak (Sudut Pandang Client Baru)
 
@@ -24,8 +24,8 @@
 |---|---|---|---|---|
 | 1 | GET /v1/orders/{id} | 200 | 200, body sesuai schema `Order` | ✅ PASS |
 | 2 | GET /v1/orders | 200 | 200, array 2 order | ✅ PASS |
-| 3 | GET ?status=pending_pickup | 200, terfilter | 200, tapi tidak dapat dibuktikan terfilter (semua data kebetulan berstatus sama) | ⚠️ PERLU RE-TEST |
-| 4 | GET ?limit=5 | 200, dibatasi | 200, tidak dapat dibuktikan (jumlah data < limit) | ⚠️ PERLU RE-TEST |
+| 3 | GET ?status=pending_pickup | 200, terfilter | 200, response hanya memuat order berstatus `pending_pickup` | ✅ PASS |
+| 4 | GET ?limit=1 | 200, maksimal 1 item | 200, response maksimal 1 item dan cursor tersedia bila ada halaman berikutnya | ✅ PASS |
 | 5 | POST + Idempotency-Key | 201 | 201, `Location` header ada, body lengkap | ✅ PASS |
 | 6 | POST tanpa key | 400 | 400, detail "Idempotency-Key header is required" | ✅ PASS |
 | 7 | Malformed JSON | 400 | 400, application/problem+json | ✅ PASS |
@@ -36,7 +36,7 @@
 
 Raw command + response lengkap: `docs/p3-client-review-raw.txt`
 
-**Ringkasan: 9/11 PASS penuh, 2/11 tidak dapat diverifikasi secara meyakinkan dan bukan berarti gagal, tetapi terdapat keterbatasan data uji.**
+**Ringkasan lokal: 11/11 PASS. Deployment re-test menunggu image final hasil redeploy.**
 
 ## 3. Review Error & Retry
 
@@ -46,6 +46,7 @@ Raw command + response lengkap: `docs/p3-client-review-raw.txt`
       dilaporkan sekaligus) vs bad-request (malformed JSON/header hilang)
 - [x] Problem Details (`type`, `title`, `status`, `detail`, `instance`)
       konsisten dan mudah dipahami tanpa baca kode service
+- [x] Validation errors expose `invalidFields` extension locally
 - [x] Retry transient error (500/502/503/504) secara desain tetap
       memakai `Idempotency-Key` yang sama; dinyatakan eksplisit di
       kontrak, belum diuji langsung karena kondisi transient sulit
@@ -55,14 +56,7 @@ Raw command + response lengkap: `docs/p3-client-review-raw.txt`
 
 ## 4. Temuan Ambiguity / Mismatch
 
-1. **Filter dan pagination tidak dapat diverifikasi secara meyakinkan**
-   karena data uji coba di live service kebetulan homogen (semua
-   `pending_pickup`, jumlah order di bawah `limit` yang diuji). Ini
-   bukan indikasi bug, spesifikasi parameter di kontrak sudah jelas
-   (nama, default, maksimum), tetapi disarankan menambahkan beberapa
-   order dengan status berbeda sebelum demo final, agar filter dan
-   pagination punya bukti fungsional yang lebih kuat, tidak hanya bukti
-   "tidak error".
+1. Filter status dan pagination sudah diverifikasi pada service lokal dengan data uji yang memiliki lebih dari satu status dan request `limit=1`. Deployment harus diulang setelah image final aktif.
 
 2. **Test cancellation (test #10) membatalkan order yang dipakai di
    test #1** (`ord_MTUAXUC114063A`), menyebabkan status order tersebut

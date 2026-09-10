@@ -1,5 +1,9 @@
 # Contract changelog
 
+## 2026-09-10
+
+- Added `invalidFields` Problem Details extension for request validation errors.
+
 ## 2026-09-08
 
 - Finalized Session 3 contract behavior for unauthenticated local implementation.

@@ -2,7 +2,7 @@
 
 ## Context
 
-Session 3 memerlukan implementasi service yang mengikuti kontrak OpenAPI 0.2.0 untuk Laundry Pickup & Delivery. Service harus mendukung order lifecycle, idempotency, dan error handling sesuai RFC 9457.
+Session 3 memerlukan implementasi service yang mengikuti kontrak OpenAPI 0.2.1 untuk Laundry Pickup & Delivery. Service harus mendukung order lifecycle, idempotency, dan error handling sesuai RFC 9457.
 
 ## Decision
 
@@ -11,6 +11,7 @@ Session 3 memerlukan implementasi service yang mengikuti kontrak OpenAPI 0.2.0 u
 - **Idempotency**: Disimpan di tabel `idempotency_records` dalam SQLite. Record berlaku 24 jam.
 - **ID Generation**: Server-generated dengan prefix (`ord_`, `can_`) + timestamp base36 + random hex.
 - **Error Format**: application/problem+json sesuai RFC 9457.
+- **Validation Extension**: `invalidFields` memuat nama field yang gagal divalidasi.
 
 ## Alternatives Considered
 
