@@ -379,43 +379,183 @@ server: cloudflare
 
 ## 3. Bukti 3 Skenario Demo (Poin 8)
 
+Bagian ini memuat bukti eksekusi lengkap (command, HTTP header, dan JSON output) untuk 3 skenario demonstrasi tatap muka.
+
 ### Demo 1 — Read dari Service Sendiri
-- **Tujuan:** Menunjukkan bahwa service yang merespons adalah Node.js Express + SQLite asli kelompok (bukan Prism Mock).
-- **Perintah:**
-  ```bash
-  curl -i https://pbse.kevinio.my.id/v1/orders
-  ```
-- **Bukti:** Status `200 OK`, respon dari reverse proxy Traefik, dan data berasal langsung dari database SQLite.
+- **Tujuan:** Membuktikan bahwa request dilayani oleh service backend Node.js + SQLite asli (bukan Prism Mock).
+- **Ciri Khusus:** Tidak terdapat header `x-prism-*`, respon berasal dari reverse proxy Traefik & Cloudflare, serta data sesuai dengan isi database.
+
+**Command:**
+```bash
+curl -i https://pbse.kevinio.my.id/v1/orders
+```
+
+**Response:**
+```http
+HTTP/2 200 
+date: Thu, 10 Sep 2026 03:55:01 GMT
+content-type: application/json; charset=utf-8
+content-length: 499
+etag: W/"1f3-lOnQyyxRtgtmN8avrwKdK7G4P60"
+server: cloudflare
+
+[
+  {
+    "id": "ord_MTUAXUC114063A",
+    "customerId": "cus_01HZX2Y1AB",
+    "serviceType": "wash_fold",
+    "weightKg": 5.5,
+    "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
+    "status": "cancelled",
+    "createdAt": "2026-09-09T16:17:38.257Z",
+    "updatedAt": "2026-09-09T16:22:10.112Z"
+  },
+  {
+    "id": "ord_MTUAZAHDE5DAB2",
+    "customerId": "cus_01HZX2Y1AB",
+    "serviceType": "wash_fold",
+    "weightKg": 5.5,
+    "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
+    "status": "pending_pickup",
+    "createdAt": "2026-09-09T16:18:45.841Z",
+    "updatedAt": "2026-09-09T16:18:45.841Z"
+  }
+]
+```
+
+---
 
 ### Demo 2 — Write lalu Read
-- **Tujuan:** Menunjukkan siklus pembuatan data baru dan pengambilan data via ID.
-- **Perintah Write (POST):**
-  ```bash
-  curl -i -X POST "https://pbse.kevinio.my.id/v1/orders" \
-    -H "Content-Type: application/json" \
-    -H "Idempotency-Key: $(uuidgen | tr '[:upper:]' '[:lower:]')" \
-    -d '{
-      "customerId": "cus_01HZX2Y1AB",
-      "serviceType": "wash_fold",
-      "weightKg": 5.5,
-      "pickupAddress": "Jl. Merdeka No. 10, Jakarta"
-    }'
-  ```
-- **Perintah Read (GET order by generated ID):**
-  ```bash
-  curl -i https://pbse.kevinio.my.id/v1/orders/ord_MTUB58F693A120
-  ```
-- **Bukti:** `201 Created` dengan header `Location`, diikuti `200 OK` yang mengembalikan entitas yang sama.
+- **Tujuan:** Menunjukkan siklus penulisan order baru dan pembacaan kembali melalui order ID yang dihasilkan.
+
+**Langkah 1: Write (POST /v1/orders)**
+```bash
+curl -i -X POST "https://pbse.kevinio.my.id/v1/orders" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: e18290a1-7182-41f2-9021-391847102911" \
+  -d '{
+    "customerId": "cus_01HZX2Y1AB",
+    "serviceType": "wash_fold",
+    "weightKg": 5.5,
+    "pickupAddress": "Jl. Merdeka No. 10, Jakarta"
+  }'
+```
+
+**Response Write:**
+```http
+HTTP/2 201 
+date: Thu, 10 Sep 2026 03:56:14 GMT
+content-type: application/json; charset=utf-8
+content-length: 248
+location: /v1/orders/ord_MTUB58F693A120
+server: cloudflare
+
+{
+  "id": "ord_MTUB58F693A120",
+  "customerId": "cus_01HZX2Y1AB",
+  "serviceType": "wash_fold",
+  "weightKg": 5.5,
+  "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
+  "status": "pending_pickup",
+  "createdAt": "2026-09-10T03:56:14.052Z",
+  "updatedAt": "2026-09-10T03:56:14.052Z"
+}
+```
+
+**Langkah 2: Read (GET /v1/orders/{orderId})**
+```bash
+curl -i https://pbse.kevinio.my.id/v1/orders/ord_MTUB58F693A120
+```
+
+**Response Read:**
+```http
+HTTP/2 200 
+date: Thu, 10 Sep 2026 03:56:30 GMT
+content-type: application/json; charset=utf-8
+content-length: 248
+server: cloudflare
+
+{
+  "id": "ord_MTUB58F693A120",
+  "customerId": "cus_01HZX2Y1AB",
+  "serviceType": "wash_fold",
+  "weightKg": 5.5,
+  "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
+  "status": "pending_pickup",
+  "createdAt": "2026-09-10T03:56:14.052Z",
+  "updatedAt": "2026-09-10T03:56:14.052Z"
+}
+```
+*Hasil:* Status `200 OK` dan representasi entitas persis sama dengan yang dibuat.
+
+---
 
 ### Demo 3 — Idempotent Retry dan Durability Setelah Restart
-- **Tujuan:** Membuktikan proteksi duplikasi data dan ketahanan penyimpanan SQLite pada named volume saat container di-restart.
-- **Langkah 1 (Idempotent Retry):** Kirim POST dengan key dan body yang sama sebanyak 2 kali. Respons kedua tetap `201 Created` identik dan tidak menambah record baru di database.
-- **Langkah 2 (Restart Container):** Restart container service melalui Portainer.
-- **Langkah 3 (Verifikasi Data Setelah Restart):**
-  ```bash
-  curl -i https://pbse.kevinio.my.id/v1/orders/ord_MTUB58F693A120
-  ```
-- **Bukti:** Status tetap `200 OK` dan entitas tetap utuh terbaca dari SQLite named volume (`pbse_laundry_data:/app/service/db`).
+- **Tujuan:** Menunjukkan sistem aman terhadap network retry (anti-duplikasi) dan menjamin data persisten meski container di-restart.
+
+**Langkah 1: Mengirim Ulang POST Pertama (Idempotent Retry)**
+```bash
+curl -i -X POST "https://pbse.kevinio.my.id/v1/orders" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: e18290a1-7182-41f2-9021-391847102911" \
+  -d '{
+    "customerId": "cus_01HZX2Y1AB",
+    "serviceType": "wash_fold",
+    "weightKg": 5.5,
+    "pickupAddress": "Jl. Merdeka No. 10, Jakarta"
+  }'
+```
+
+**Response Retry Kedua:**
+```http
+HTTP/2 201 
+date: Thu, 10 Sep 2026 03:57:02 GMT
+content-type: application/json; charset=utf-8
+content-length: 248
+location: /v1/orders/ord_MTUB58F693A120
+server: cloudflare
+
+{
+  "id": "ord_MTUB58F693A120",
+  "customerId": "cus_01HZX2Y1AB",
+  "serviceType": "wash_fold",
+  "weightKg": 5.5,
+  "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
+  "status": "pending_pickup",
+  "createdAt": "2026-09-10T03:56:14.052Z",
+  "updatedAt": "2026-09-10T03:56:14.052Z"
+}
+```
+*Hasil:* Status tetap `201 Created` dan data identik di-replay dari tabel `idempotency_records`. Tidak ada record baru yang bertambah di database.
+
+**Langkah 2: Restart Container melalui Portainer**
+Container `laundry-service` di-restart melalui web UI Portainer di VPS.
+
+**Langkah 3: Read Ulang Setelah Restart Selesai**
+```bash
+curl -i https://pbse.kevinio.my.id/v1/orders/ord_MTUB58F693A120
+```
+
+**Response Setelah Restart:**
+```http
+HTTP/2 200 
+date: Thu, 10 Sep 2026 03:58:20 GMT
+content-type: application/json; charset=utf-8
+content-length: 248
+server: cloudflare
+
+{
+  "id": "ord_MTUB58F693A120",
+  "customerId": "cus_01HZX2Y1AB",
+  "serviceType": "wash_fold",
+  "weightKg": 5.5,
+  "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
+  "status": "pending_pickup",
+  "createdAt": "2026-09-10T03:56:14.052Z",
+  "updatedAt": "2026-09-10T03:56:14.052Z"
+}
+```
+*Hasil:* Status `200 OK` dan data tetap ada secara durable karena tersimpan pada volume Docker `pbse_laundry_data:/app/service/db`.
 
 ---
 
