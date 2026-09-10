@@ -127,22 +127,35 @@ Semua error menggunakan `Content-Type: application/problem+json`.
 
 ## Persistence Check
 
+Automated check for the assignment requirement: create three entities, restart
+the service, then read all three entities from SQLite:
+
 ```bash
-# 1. Start service dan buat order
+node tests/contract/test-persistence-restart.js
+```
+
+Expected output contains three `createdIds` and the same three `restoredIds`.
+
+Manual equivalent:
+
+```bash
+# 1. Start service dan buat tiga order dengan tiga Idempotency-Key berbeda
 node src/app.js &
 curl -X POST http://127.0.0.1:8080/v1/orders \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: 423e4567-e89b-42d3-a456-426614174000" \
   -d '{"customerId":"cus_01HZX2Y1AB","serviceType":"wash_fold","weightKg":5.5,"pickupAddress":"Jl. Merdeka No. 10, Jakarta"}'
 
-# 2. Catat order ID dari response
+# 2. Catat tiga order ID dari response
 
 # 3. Stop service
 kill %1
 
-# 4. Start ulang dan GET order
+# 4. Start ulang dan GET ketiga order
 node src/app.js &
-curl http://127.0.0.1:8080/v1/orders/<order-id>
+curl http://127.0.0.1:8080/v1/orders/<order-id-1>
+curl http://127.0.0.1:8080/v1/orders/<order-id-2>
+curl http://127.0.0.1:8080/v1/orders/<order-id-3>
 
 # 5. Data harus tetap ada
 ```
@@ -152,3 +165,17 @@ curl http://127.0.0.1:8080/v1/orders/<order-id>
 - `GET /v1/pickups` belum diimplementasikan (tidak masuk scope P3).
 - Authentication/authorization belum diimplementasikan (deferred per kontrak).
 - `invalidFields` dikirim sebagai extension Problem Details pada error validasi request.
+
+## P3 Verification Commands
+
+Run from repository root against a running local service:
+
+```bash
+BASE_URL="http://127.0.0.1:8080/v1" node tests/contract/test-contract.js
+DATABASE_FILE="./service/db/laundry.sqlite" node tests/contract/test-idempotency-concurrency.js
+node tests/contract/test-persistence-restart.js
+```
+
+The concurrency check reports request statuses, one unique order ID, and one
+database row. Authentication and authorization remain deferred to Session 4,
+as required by the assignment.
