@@ -3,7 +3,7 @@
 **Project:** Laundry Pickup & Delivery API  
 **Date:** 2026-09-09  
 **Tester:** Faris (Integration Owner)  
-**Tested Commit:** `pending-final-commit`
+**Tested Commit:** `350dbd2`
 
 ---
 
@@ -16,7 +16,7 @@ This report records the P3 integration evidence for the Prism mock and live Expr
 - **Live service contract test:** 33 passed, 0 failed locally.
 - **Curl scenarios:** PASS for both targets.
 - **OpenAPI lint:** Valid, with 4 existing warnings and no errors.
-- **Contract mismatch:** No mismatch found locally. Deployment re-test pending final image redeploy.
+- **Contract mismatch:** No mismatch found. Public deployment re-test passed after manual redeploy.
 
 ---
 
@@ -91,10 +91,10 @@ Integration test selesai.
 
 Bukti:
 - Contract test mock: PASS
-- Contract test service: PASS locally, 33 assertions
+- Contract test service: PASS, 33 assertions
 - Curl scenarios mock: PASS
 - Curl scenarios service: PASS
-- CI: workflow tersedia; deployment re-test pending final image redeploy
+- CI: workflow tersedia; public deployment contract test PASS
 - OpenAPI lint: PASS (warnings only)
 - Mismatch: No mismatch found
 

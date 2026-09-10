@@ -13,13 +13,13 @@
 
 Deployment URL: `https://pbse.kevinio.my.id`
 
-Deployment re-test must run after the final image redeploy:
+Deployment re-test command:
 
 ```bash
 BASE_URL="https://pbse.kevinio.my.id/v1" node tests/contract/test-contract.js
 ```
 
-Expected result: 33 assertions passed, including `invalidFields`. The current public image predates this patch and must not be used as final verification until redeployed.
+Result: 33 assertions passed, including `invalidFields`, after manual redeploy of commit `350dbd2`.
 
 ## Final demo evidence
 
@@ -33,4 +33,4 @@ Expected result: 33 assertions passed, including `invalidFields`. The current pu
 - ADR: `docs/decisions/0002-implementasi.md`.
 - Integration report: `docs/p3-integration-report.md`.
 - Client review: `docs/p3-client-review.md`.
-- Deployment test output: pending final image redeploy.
+- Deployment test output: PASS, 33 assertions, commit `350dbd2`.

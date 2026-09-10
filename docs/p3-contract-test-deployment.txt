@@ -1,0 +1,22 @@
+P3 public deployment contract verification
+Date: 2026-09-10
+Target: https://pbse.kevinio.my.id/v1
+Commit: 350dbd2
+
+Result: PASS
+Assertions: 33 passed, 0 failed
+
+Covered:
+- GET collection and filter
+- POST 201 with Location
+- GET created order
+- Same-key retry replay
+- Same-key different-body conflict 409
+- Missing key 400
+- Malformed ID 400
+- Unknown order 404
+- Pagination limit=1
+- Empty collection 200 []
+- Invalid body 400 with invalidFields
+- Domain-invalid body 422 with invalidFields
+- RFC 9457 Problem Details fields
