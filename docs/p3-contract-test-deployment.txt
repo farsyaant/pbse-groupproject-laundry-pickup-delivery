@@ -1,7 +1,7 @@
 P3 public deployment contract verification
 Date: 2026-09-10
 Target: https://pbse.kevinio.my.id/v1
-Commit: 350dbd2
+Commit: cadf56a (workflow snapshot); service image: 350dbd2
 
 Result: PASS
 Assertions: 33 passed, 0 failed

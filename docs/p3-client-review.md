@@ -3,7 +3,7 @@
 **Reviewer**: Tori (Client Owner)
 **Target**: https://pbse.kevinio.my.id
 **Tanggal**: 9 September 2026
-**Commit yang direview**: `350dbd2`
+**Commit yang direview**: `350dbd2` (service); workflow snapshot `cadf56a`
 
 ## 1. Review Kontrak (Sudut Pandang Client Baru)
 

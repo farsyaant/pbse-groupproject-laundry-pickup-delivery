@@ -571,4 +571,4 @@ server: cloudflare
 | Idempotency tersimpan di database | Tabel `idempotency_records` | Lulus (replay 201 & conflict 409) |
 | Tidak ada credential di source code | Hanya membaca env | `.env` tidak masuk Git |
 | POST valid mengembalikan 201 & Location | Header `Location: /v1/orders/{id}` | Lulus |
-| Contract Test Live Service | 31 passed, 0 failed | Divalidasi oleh Faris |
+| Contract Test Live Service | 33 passed, 0 failed | Divalidasi setelah manual redeploy |
