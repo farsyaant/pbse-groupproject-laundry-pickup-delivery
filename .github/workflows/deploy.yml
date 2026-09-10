@@ -13,9 +13,13 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Trigger Portainer stack redeploy
+        env:
+          PORTAINER_API_BASE_URL: ${{ secrets.PORTAINER_API_BASE_URL || 'https://portainer.kevinio.my.id' }}
+          PORTAINER_STACK_ID: ${{ secrets.PORTAINER_STACK_ID || '7' }}
         run: |
           curl -fsS -X PUT \
+            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
             -H "X-API-Key: ${{ secrets.PORTAINER_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d '{"RepullImageAndRedeploy": true}' \
-            "https://portainer.kevinio.my.id/api/stacks/${{ secrets.PORTAINER_STACK_ID }}/git/redeploy?endpointId=3"
+            "${PORTAINER_API_BASE_URL}/api/stacks/${PORTAINER_STACK_ID}/git/redeploy?endpointId=3"
