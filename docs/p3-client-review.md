@@ -3,7 +3,7 @@
 **Reviewer**: Tori (Client Owner)
 **Target**: https://pbse.kevinio.my.id
 **Tanggal**: 9 September 2026
-**Commit yang direview**: `pending-final-commit` (replace after commit)
+**Commit yang direview**: `350dbd2`
 
 ## 1. Review Kontrak (Sudut Pandang Client Baru)
 
@@ -36,7 +36,7 @@
 
 Raw command + response lengkap: `docs/p3-client-review-raw.txt`
 
-**Ringkasan lokal: 11/11 PASS. Deployment re-test menunggu image final hasil redeploy.**
+**Ringkasan: 11/11 PASS. Public deployment contract test: 33/33 PASS.**
 
 ## 3. Review Error & Retry
 
@@ -56,7 +56,7 @@ Raw command + response lengkap: `docs/p3-client-review-raw.txt`
 
 ## 4. Temuan Ambiguity / Mismatch
 
-1. Filter status dan pagination sudah diverifikasi pada service lokal dengan data uji yang memiliki lebih dari satu status dan request `limit=1`. Deployment harus diulang setelah image final aktif.
+1. Filter status dan pagination sudah diverifikasi pada public service dengan request `status=pending_pickup` dan `limit=1`.
 
 2. **Test cancellation (test #10) membatalkan order yang dipakai di
    test #1** (`ord_MTUAXUC114063A`), menyebabkan status order tersebut
