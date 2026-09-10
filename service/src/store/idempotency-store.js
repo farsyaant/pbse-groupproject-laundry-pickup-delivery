@@ -20,6 +20,16 @@ const markCompletedStmt = db.prepare(`
   WHERE key = @key
 `);
 
+const deleteExpiredStmt = db.prepare(
+  'DELETE FROM idempotency_records WHERE key = ? AND expires_at < ?',
+);
+
+const claimStmt = db.prepare(`
+  INSERT OR IGNORE INTO idempotency_records
+    (key, body_hash, request_status, created_at, expires_at)
+  VALUES (@key, @body_hash, 'processing', @created_at, @expires_at)
+`);
+
 function findByKey(key) {
   return findByKeyStmt.get(key) || null;
 }
@@ -44,4 +54,14 @@ function markCompleted(key, responseStatus, responseBody) {
   });
 }
 
-module.exports = { findByKey, insert, markCompleted };
+function claim(key, bodyHash, now, expiresAt) {
+  deleteExpiredStmt.run(key, now);
+  return claimStmt.run({
+    key,
+    body_hash: bodyHash,
+    created_at: now,
+    expires_at: expiresAt,
+  }).changes === 1;
+}
+
+module.exports = { findByKey, insert, markCompleted, claim };

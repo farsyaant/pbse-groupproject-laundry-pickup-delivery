@@ -77,18 +77,26 @@ function checkIdempotency(req) {
   return { proceed: true, key, hash };
 }
 
-function saveIdempotencyRecord(key, hash, responseStatus, responseBody) {
+function claimIdempotency(key, hash, instance) {
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-  idempotencyStore.insert({
-    key,
-    body_hash: hash,
-    request_status: 'completed',
-    response_status: responseStatus,
-    response_body: responseBody,
-    created_at: now,
-    expires_at: expiresAt,
-  });
+  if (idempotencyStore.claim(key, hash, now, expiresAt)) return null;
+
+  const current = idempotencyStore.findByKey(key);
+  if (current && current.body_hash !== hash) {
+    return { error: idempotencyConflict('Idempotency-Key was reused with different request data.', instance) };
+  }
+  if (current && current.request_status === 'processing') {
+    return { error: idempotencyConflict('A request with this Idempotency-Key is still being processed.', instance), retryAfter: 5 };
+  }
+  if (current && current.request_status === 'completed') {
+    return { replay: true, status: current.response_status, body: current.response_body };
+  }
+  return { error: idempotencyConflict('A request with this Idempotency-Key is unavailable.', instance) };
+}
+
+function saveIdempotencyRecord(key, hash, responseStatus, responseBody) {
+  idempotencyStore.markCompleted(key, responseStatus, responseBody);
 }
 
 router.get('/:orderId', (req, res) => {
@@ -145,9 +153,16 @@ router.post('/', (req, res) => {
   if (validation) {
     const problem =
       validation.status === 422
-        ? unprocessable(validation.errors.join('; '), req.originalUrl)
-        : badRequest(validation.errors.join('; '), req.originalUrl);
+        ? unprocessable(validation.errors.join('; '), req.originalUrl, { invalidFields: validation.fields })
+        : badRequest(validation.errors.join('; '), req.originalUrl, { invalidFields: validation.fields });
     return sendProblem(res, problem);
+  }
+
+  const claim = claimIdempotency(idem.key, idem.hash, req.originalUrl);
+  if (claim) {
+    if (claim.retryAfter) res.set('Retry-After', String(claim.retryAfter));
+    if (claim.replay) return res.status(claim.status).json(JSON.parse(claim.body));
+    return sendProblem(res, claim.error);
   }
 
   const now = new Date().toISOString();
@@ -209,6 +224,13 @@ router.post('/:orderId/cancellation', (req, res) => {
         CANCELLABLE,
       ),
     );
+  }
+
+  const claim = claimIdempotency(idem.key, idem.hash, req.originalUrl);
+  if (claim) {
+    if (claim.retryAfter) res.set('Retry-After', String(claim.retryAfter));
+    if (claim.replay) return res.status(claim.status).json(JSON.parse(claim.body));
+    return sendProblem(res, claim.error);
   }
 
   const now = new Date().toISOString();

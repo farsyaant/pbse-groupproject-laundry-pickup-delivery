@@ -10,13 +10,14 @@ function sendProblem(res, problem) {
   res.status(problem.status).type('application/problem+json').json(problem);
 }
 
-function badRequest(detail, instance) {
+function badRequest(detail, instance, extras) {
   return createProblem(
     'https://api.example.com/problems/bad-request',
     'Bad request',
     400,
     detail,
     instance,
+    extras,
   );
 }
 
@@ -51,13 +52,14 @@ function orderNotCancellable(detail, instance, currentStatus, allowedStatuses) {
   );
 }
 
-function unprocessable(detail, instance) {
+function unprocessable(detail, instance, extras) {
   return createProblem(
     'https://api.example.com/problems/validation-failed',
     'Validation failed',
     422,
     detail,
     instance,
+    extras,
   );
 }
 
