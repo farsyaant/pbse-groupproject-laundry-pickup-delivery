@@ -29,20 +29,18 @@ jobs:
           cd service
           pnpm install
 
-      - name: Start Laundry Service
-        env:
-          PORT: 8080
-          DATABASE_FILE: ./db/laundry.sqlite
-          NODE_ENV: test
+      - name: Start Prism contract mock
         run: |
-          cd service
-          node src/app.js &
-          echo "Waiting for service to be ready..."
-          npx wait-on http://127.0.0.1:8080/health --timeout 30000
+          pnpm --package=@stoplight/prism-cli dlx prism mock openapi.yaml -p 4010 > prism-ci.log 2>&1 &
+          pnpm --package=wait-on dlx wait-on http://127.0.0.1:4010 --timeout 30000
 
-      - name: Run Contract Tests against Live Service
+      - name: Run Contract Tests against Prism
         run: |
-          BASE_URL="http://127.0.0.1:8080/v1" node tests/contract/test-contract.js
+          BASE_URL="http://127.0.0.1:4010" node tests/contract/test-contract.js
+
+      - name: Run Authorization Tests
+        run: |
+          pnpm --dir service run test:authz
 
       - name: Run Redocly OpenAPI Lint
         run: |

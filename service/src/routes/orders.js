@@ -25,6 +25,12 @@ const {
   orderNotCancellable,
   unprocessable,
 } = require('../problem');
+const { requireScope } = require('../auth/require-scope');
+const {
+  mayReadOrder,
+  mayCancelOrder,
+  mayCreateOrder,
+} = require('../auth/ownership');
 
 function generateId(prefix) {
   const ts = Date.now().toString(36).toUpperCase();
@@ -99,23 +105,23 @@ function saveIdempotencyRecord(key, hash, responseStatus, responseBody) {
   idempotencyStore.markCompleted(key, responseStatus, responseBody);
 }
 
-router.get('/:orderId', (req, res) => {
+router.get('/:orderId', requireScope('orders:read'), (req, res) => {
   const { orderId } = req.params;
   const err = validateOrderId(orderId);
   if (err) return sendProblem(res, badRequest(err, req.originalUrl));
 
   const row = orderStore.getById(orderId);
-  if (!row) {
+  if (!row || !mayReadOrder(req.principal, row)) {
     return sendProblem(
       res,
-      notFound(`Order ${orderId} does not exist.`, req.originalUrl),
+      notFound('The requested order was not found.', '/v1/orders/{orderId}'),
     );
   }
 
   res.status(200).json(toOrderRepresentation(row));
 });
 
-router.get('/', (req, res) => {
+router.get('/', requireScope('orders:read'), (req, res) => {
   const { status, limit, cursor } = req.query;
 
   const errors = validateListParams({ status, limit });
@@ -124,7 +130,12 @@ router.get('/', (req, res) => {
   }
 
   const parsedLimit = limit ? parseInt(limit, 10) : 20;
-  const result = orderStore.getAll({ status, limit: parsedLimit, cursor });
+  const result = orderStore.getAll({
+    status,
+    limit: parsedLimit,
+    cursor,
+    customerId: req.principal.subject,
+  });
 
   if (result === null) {
     return sendProblem(res, badRequest('Invalid cursor value.', req.originalUrl));
@@ -137,7 +148,7 @@ router.get('/', (req, res) => {
   res.status(200).json(result.rows.map(toOrderRepresentation));
 });
 
-router.post('/', (req, res) => {
+router.post('/', requireScope('orders:write'), (req, res) => {
   const idem = checkIdempotency(req);
   if (idem.error) {
     if (idem.retryAfter) res.set('Retry-After', String(idem.retryAfter));
@@ -156,6 +167,13 @@ router.post('/', (req, res) => {
         ? unprocessable(validation.errors.join('; '), req.originalUrl, { invalidFields: validation.fields })
         : badRequest(validation.errors.join('; '), req.originalUrl, { invalidFields: validation.fields });
     return sendProblem(res, problem);
+  }
+
+  if (!mayCreateOrder(req.principal, req.body.customerId)) {
+    return sendProblem(
+      res,
+      notFound('The requested customer was not found.', req.originalUrl),
+    );
   }
 
   const claim = claimIdempotency(idem.key, idem.hash, req.originalUrl);
@@ -191,7 +209,10 @@ router.post('/', (req, res) => {
 
 const CANCELLABLE = ['pending_pickup', 'ready_for_pickup', 'confirmed'];
 
-router.post('/:orderId/cancellation', (req, res) => {
+router.post(
+  '/:orderId/cancellation',
+  requireScope('orders:write'),
+  (req, res) => {
   const { orderId } = req.params;
 
   const idErr = validateOrderId(orderId);
@@ -207,10 +228,10 @@ router.post('/:orderId/cancellation', (req, res) => {
   }
 
   const order = orderStore.getById(orderId);
-  if (!order) {
+  if (!order || !mayCancelOrder(req.principal, order)) {
     return sendProblem(
       res,
-      notFound(`Order ${orderId} does not exist.`, req.originalUrl),
+      notFound('The requested order was not found.', '/v1/orders/{orderId}/cancellation'),
     );
   }
 
@@ -249,6 +270,7 @@ router.post('/:orderId/cancellation', (req, res) => {
   saveIdempotencyRecord(idem.key, idem.hash, 200, JSON.stringify(representation));
 
   res.status(200).json(representation);
-});
+  },
+);
 
 module.exports = router;

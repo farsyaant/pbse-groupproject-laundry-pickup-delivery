@@ -26,6 +26,9 @@ cp .env.example .env
 | `PORT` | Ya | `8080` | Port HTTP |
 | `DATABASE_FILE` | Ya | `./db/laundry.sqlite` | Path file SQLite |
 | `NODE_ENV` | Tidak | `development` | Environment |
+| `OIDC_ISSUER` | Ya | - | Issuer dari discovery document OIDC |
+| `OIDC_JWKS_URI` | Ya | - | URL JWKS publik authorization server |
+| `OIDC_AUDIENCE` | Ya | - | Audience API yang didaftarkan pada authorization server |
 
 Service gagal start jika variable wajib kosong.
 
@@ -194,8 +197,17 @@ curl http://127.0.0.1:8080/v1/orders/<order-id-3>
 
 ## Known Issues
 
-- `GET /v1/pickups` belum diimplementasikan di backend (direncanakan bertahap).
-- Status P4: Kontrak API v1.0.0 (`openapi.yaml`), changelog breaking change, dan Keycloak 26.7.3 telah selesai (Tahap 1-4). Integrasi middleware authentication, scope, dan object ownership pada backend service dikerjakan pada Tahap 5-9 (Kevin).
+- `GET /v1/pickups` belum diimplementasikan (tidak masuk scope P3).
+- Authentication menggunakan bearer JWT dari Keycloak. Set `OIDC_ISSUER`,
+  `OIDC_JWKS_URI`, dan `OIDC_AUDIENCE` pada environment sebelum menjalankan
+  service.
+- `GET /v1/orders` hanya mengembalikan order milik subject token. Detail dan
+  cancellation order yang bukan milik caller dikembalikan sebagai `404` yang
+  sama dengan order yang tidak ada.
+- Ownership rule saat ini: customer hanya dapat membaca atau membatalkan order
+  dengan `customer_id` yang sama dengan `principal.subject`, dan hanya dapat
+  membuat order untuk subject-nya sendiri. Akses staff per outlet menunggu
+  relasi outlet yang belum tersedia pada schema P3.
 - `invalidFields` dikirim sebagai extension Problem Details pada error validasi request.
 
 ## P3 Verification Commands
@@ -209,5 +221,8 @@ node tests/contract/test-persistence-restart.js
 ```
 
 The concurrency check reports request statuses, one unique order ID, and one
-database row. Authentication and authorization remain deferred to Session 4,
-as required by the assignment.
+database row. Authz tests are run with:
+
+```bash
+node tests/authz/test-authz.js
+```

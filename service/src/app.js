@@ -5,7 +5,9 @@ require('./database');
 
 const express = require('express');
 const ordersRouter = require('./routes/orders');
+const { authenticate } = require('./auth/authenticate');
 const { sendProblem, badRequest, internalError } = require('./problem');
+const logger = require('./logger');
 
 const app = express();
 
@@ -16,6 +18,7 @@ app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
+app.use(authenticate);
 app.use('/v1/orders', ordersRouter);
 
 app.use((err, req, res, _next) => {
@@ -26,7 +29,10 @@ app.use((err, req, res, _next) => {
     );
   }
 
-  console.error('Unhandled error:', err.stack || err.message);
+  logger.error('Unhandled error', {
+    ...logger.requestContext(req, 500),
+    reason: err.message,
+  });
   sendProblem(res, internalError(req.originalUrl));
 });
 

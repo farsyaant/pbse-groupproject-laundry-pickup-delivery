@@ -8,6 +8,9 @@ services:
       PORT: 8080
       DATABASE_FILE: ./db/laundry.sqlite
       NODE_ENV: production
+      OIDC_ISSUER: ${OIDC_ISSUER:?OIDC_ISSUER is required}
+      OIDC_JWKS_URI: ${OIDC_JWKS_URI:?OIDC_JWKS_URI is required}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:?OIDC_AUDIENCE is required}
     volumes:
       - laundry_data:/app/service/db
     networks:
