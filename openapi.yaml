@@ -1,33 +1,59 @@
 openapi: 3.0.3
 info:
   title: Laundry Pickup & Delivery API
-  version: 0.2.1
+  version: 1.0.0
   license:
     name: Academic project
   description: >-
     Contract-first API for submitting laundry orders and arranging pickup.
     Clients MUST ignore unknown response fields and MUST safely handle unknown
-    enumeration values without crashing.
+    enumeration values without crashing. OAuth 2.0 / OIDC authentication and
+    scope-based authorization are required for all protected operations.
 servers:
   - url: https://api.example.com/v1
     description: Production API
   - url: http://localhost:8080/v1
     description: Local service
-# Authentication is intentionally deferred for Session 3. Authorization remains
-# a service-layer responsibility and can be added in a later compatible contract.
-security: []
+security:
+  - oauth2: []
 tags:
+  - name: System
+    description: System readiness and health check
   - name: Orders
     description: Laundry order lifecycle
   - name: Pickups
     description: Pickup arrangements for laundry orders
 
 paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Service health check
+      operationId: healthCheck
+      description: Returns service readiness status. Public endpoint for monitoring.
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
   /orders:
     get:
       tags: [Orders]
       summary: List laundry orders
       operationId: listOrders
+      security:
+        - oauth2: [orders:read]
       parameters:
         - $ref: '#/components/parameters/OrderStatusFilter'
         - $ref: '#/components/parameters/Limit'
@@ -54,6 +80,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
         '502':
@@ -66,6 +94,8 @@ paths:
       tags: [Orders]
       summary: Create a laundry order
       operationId: createOrder
+      security:
+        - oauth2: [orders:write]
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -105,6 +135,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
         '422':
@@ -123,6 +157,8 @@ paths:
       tags: [Orders]
       summary: Get one laundry order
       operationId: getOrder
+      security:
+        - oauth2: [orders:read]
       parameters:
         - $ref: '#/components/parameters/OrderId'
       responses:
@@ -145,6 +181,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -161,6 +199,8 @@ paths:
       tags: [Orders]
       summary: Cancel a laundry order
       operationId: cancelOrder
+      security:
+        - oauth2: [orders:write]
       description: >-
         Cancels an order only while its current state allows cancellation. The
         service is authoritative; clients must handle 409 if state changed.
@@ -211,6 +251,8 @@ paths:
       tags: [Pickups]
       summary: List pickup arrangements
       operationId: listPickups
+      security:
+        - oauth2: [pickups:read]
       parameters:
         - $ref: '#/components/parameters/PickupStatusFilter'
         - $ref: '#/components/parameters/Limit'
@@ -235,6 +277,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
         '502':
@@ -246,10 +290,24 @@ paths:
 
 components:
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
+    oauth2:
+      type: oauth2
+      description: OIDC / OAuth 2.0 Authorization Server authentication and authorization
+      flows:
+        authorizationCode:
+          authorizationUrl: https://auth.example.com/authorize
+          tokenUrl: https://auth.example.com/oauth/token
+          scopes:
+            'orders:read': Read order collection and details within caller authority
+            'orders:write': Create and cancel orders owned by caller
+            'pickups:read': Read pickup collection and details within caller authority
+            'orders:fulfil': Manage order processing and fulfilment (staff)
+            'pickups:write': Update assigned pickup status (driver)
+        clientCredentials:
+          tokenUrl: https://auth.example.com/oauth/token
+          scopes:
+            'orders:read': Read order collection and details for system jobs
+            'pickups:read': Read pickup collection and details for system jobs
   parameters:
     OrderId:
       name: orderId
@@ -472,7 +530,13 @@ components:
             detail: Request is malformed or contains invalid syntax.
             instance: /v1/orders
     Unauthorized:
-      description: Missing or invalid authentication
+      description: Missing or invalid authentication token
+      headers:
+        WWW-Authenticate:
+          description: OAuth 2.0 / Bearer authentication scheme and error details
+          schema:
+            type: string
+            example: 'Bearer realm="Laundry API", error="invalid_token"'
       content:
         application/problem+json:
           schema:
@@ -481,10 +545,10 @@ components:
             type: https://api.example.com/problems/unauthorized
             title: Unauthorized
             status: 401
-            detail: Authentication is required.
+            detail: Authentication is required. Token is missing, invalid, or expired.
             instance: /v1/orders
     Forbidden:
-      description: Insufficient permission
+      description: Insufficient scope or permission
       content:
         application/problem+json:
           schema:
@@ -493,10 +557,10 @@ components:
             type: https://api.example.com/problems/forbidden
             title: Forbidden
             status: 403
-            detail: Actor is not allowed to perform this operation.
+            detail: Caller lacks required scope or permission for this operation.
             instance: /v1/orders/ord_01HZX2Y5K7/cancellation
     NotFound:
-      description: Resource does not exist
+      description: Resource does not exist or caller lacks authority to view it (identical response to prevent resource existence probing)
       content:
         application/problem+json:
           schema:
@@ -505,7 +569,7 @@ components:
             type: https://api.example.com/problems/not-found
             title: Resource not found
             status: 404
-            detail: Requested resource does not exist.
+            detail: Requested resource does not exist or is not accessible.
             instance: /v1/orders/ord_unknown
     Conflict:
       description: Request conflicts with current domain state or idempotency record
