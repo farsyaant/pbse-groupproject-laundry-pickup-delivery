@@ -1,0 +1,34 @@
+PASS Rotation enabled; maximum reuse is zero
+PASS Access-token lifespan is 300 seconds
+PASS laundry-web: public, S256, no password/implicit/service-account grant
+PASS laundry-web: one exact callback
+PASS laundry-mobile: public, S256, no password/implicit/service-account grant
+PASS laundry-mobile: one exact callback
+PASS student-a: enabled
+PASS student-a: expected role assigned
+PASS student-b: enabled
+PASS student-b: expected role assigned
+PASS courier-a: enabled
+PASS courier-a: expected role assigned
+PASS courier-b: enabled
+PASS courier-b: expected role assigned
+PASS staff-outlet-a: enabled
+PASS staff-outlet-a: expected role assigned
+PASS staff-outlet-b: enabled
+PASS staff-outlet-b: expected role assigned
+PASS orders:read: scope restricted by role
+PASS orders:write: scope restricted by role
+PASS pickups:read: scope restricted by role
+PASS orders:fulfil: scope restricted by role
+PASS pickups:write: scope restricted by role
+PASS Discovery issuer matches
+PASS Scheduled job: signed audience-bound read token, no write scope or refresh token
+PASS laundry-web: unauthorized requested scope not granted
+PASS laundry-web: PKCE login issues refresh token
+PASS laundry-web: rejects missing PKCE
+PASS laundry-web: rejects plain PKCE
+PASS laundry-mobile: unauthorized requested scope not granted
+PASS laundry-mobile: PKCE login issues refresh token
+PASS laundry-mobile: rejects missing PKCE
+PASS laundry-mobile: rejects plain PKCE
+Refresh reuse/family-revocation sequence remains for stage 10. No token or secret output.

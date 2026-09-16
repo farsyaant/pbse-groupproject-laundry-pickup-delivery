@@ -1,11 +1,17 @@
 # ADR 0003 - Autentikasi dan Kontrol Akses P4
 
-- Status: Usulan keputusan awal tahap 1; belum disahkan bersama tim atau diimplementasikan.
+- Status: Keputusan awal tahap 1 dengan pembaruan implementasi lokal tahap 3; belum mengklaim persetujuan seluruh tim.
 - Penyusun: Aya (Client Owner Rotasi 2).
 - Reviewer yang dituju: Kevin (Service Owner), Faris (Contract Owner), Tori (Integration Owner).
 - Ruang lingkup: keputusan dan dokumentasi awal. Konfigurasi provider, perubahan kontrak, backend, client, CI, dan pengujian auth dikerjakan pada tahap berikutnya.
 
 ## Context
+
+Update tahap 3: kontrak repository kini versi 1.0.0 dan sudah mendefinisikan scope
+OAuth. Target konfigurasi dan status tenant dicatat di
+[P4 Authorization Server](../p4-authorization-server.md). Implementasi tahap 3 memakai fallback Keycloak 26.7.3 lokal karena repo tidak
+menyediakan tenant Auth0. Detail setup dan hasil verifikasi ada pada dokumen
+tersebut; bagian tahap 1 di bawah dipertahankan sebagai catatan keputusan awal.
 
 P4 menambahkan autentikasi pada hasil P3 Laundry Pickup & Delivery. Kontrak
 `openapi.yaml` versi 0.2.1 masih memakai `security: []`. Service P3 menyediakan

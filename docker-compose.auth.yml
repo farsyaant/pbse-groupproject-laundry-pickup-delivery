@@ -1,0 +1,16 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.3
+    command: [start-dev, --import-realm]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: laundry-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?Run prepare and supply the runtime env file}
+      KC_HOSTNAME: http://localhost:8081
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - ./auth/keycloak/.runtime/laundry-realm.json:/opt/keycloak/data/import/laundry-realm.json:ro
+      - laundry_auth_data:/opt/keycloak/data
+
+volumes:
+  laundry_auth_data:
