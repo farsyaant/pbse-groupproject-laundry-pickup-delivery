@@ -64,7 +64,10 @@ peran yang sama dua periode berturut-turut.
 
 Keputusan awal autentikasi tahap 1 dicatat di
 [`docs/decisions/0003-autentikasi.md`](docs/decisions/0003-autentikasi.md).
-Statusnya usulan untuk review tim; konfigurasi dan bukti pengujian auth belum dilakukan.
+Setup authorization server lokal tahap 3 dan hasil verifikasinya tersedia di
+[`docs/p4-authorization-server.md`](docs/p4-authorization-server.md).
+Keycloak memakai tambahan `docker-compose.auth.yml`; Compose service laundry
+tetap tersedia seperti sebelumnya. Integrasi middleware auth dikerjakan pada tahap berikutnya.
 
 ---
 
