@@ -5,9 +5,15 @@ Setiap client dinilai terhadap lima sumbu yang menentukan apa yang wajib disedia
 | Client | Digunakan Oleh | Secret? | Network | Latency Budget | Hardware | Human Present? |
 |---|---|---|---|---|---|---|
 | Web | Staff Laundry (dashboard admin) | Tidak | Reliable | ~2s | Unlimited | Ya, sibuk |
-| Mobile | Customer (buat & pantau order) & Driver (terima & update pickup) | Sebagian | Intermiten | ~1s (customer) / menit (driver) | Baterai, data terbatas | Ya |
-| Device (scanner loket) | Tidak ada aktor manusia — dioperasikan staf di loket | Provisioned | Unattended | Menit | Terbatas | Tidak |
-| MCP (assistant agent) | Customer (order lewat perintah natural) | Ya | Reliable | ~2s | Unlimited | Tidak — dan dia bertindak |
+| Mobile | Customer (buat & pantau order) & Driver (terima & update pickup) | Tidak untuk client secret | Intermiten | ~1s (customer) / menit (driver) | Baterai, data terbatas | Ya |
+| Device (scanner loket) | Tidak ada aktor manusia — dioperasikan staf di loket | Tidak diasumsikan aman hanya karena provisioned | Unattended | Menit | Terbatas | Tidak |
+| MCP (assistant agent) | Customer (order lewat perintah natural) | Hanya jika komponen server confidential; tidak pada agent lokal | Reliable | ~2s | Unlimited | Tidak — dan dia bertindak |
+| Scheduled job (rencana P4) | Sistem, sesuai tugas yang kelak disepakati | Ya, hanya di runtime server/secret manager | Reliable (asumsi server) | Sesuai jadwal | Server | Tidak |
+
+Kolom Secret merujuk pada kemampuan menjaga **client secret**, bukan kemampuan
+menyimpan refresh token pengguna di protected storage. Web dan mobile adalah
+public client. Rancangan flow, token storage, dan klasifikasi P4 lengkap ada di
+[ADR 0003](decisions/0003-autentikasi.md); device dan MCP masih rencana pertemuan berikutnya.
 
 ## Kesimpulan per Client
 
@@ -21,8 +27,10 @@ Digunakan dua aktor berbeda pada platform yang sama: customer (membuat & memanta
 Berupa scanner barcode/QR di loket laundry untuk mencatat cucian yang
 keluar-masuk pada tahap `processing`. Karena perangkat ini beroperasi
 tanpa pengawasan langsung dan memiliki sumber daya terbatas, klien ini hanya mengirim payload minimal dan menggunakan kredensial yang
-di-provision sekali di awal, bukan token login manual yang memerlukan
-interaksi manusia.
+di-provision pada awal penggunaan. Provisioning tidak otomatis menjadikannya
+confidential client. Rancangan awal P4 memperlakukannya sebagai public client
+dengan usulan pairing oleh staf melalui Device Authorization Grant; kemampuan
+provider dan kebutuhan operasi sepenuhnya unattended ditinjau kembali pada P11.
 
 **MCP (assistant agent)**
 Agent AI yang memungkinkan customer membuat atau memantau order lewat
