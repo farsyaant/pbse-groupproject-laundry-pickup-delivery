@@ -3,7 +3,13 @@
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
-const REQUIRED = ['PORT', 'DATABASE_FILE'];
+const REQUIRED = [
+  'PORT',
+  'DATABASE_FILE',
+  'OIDC_ISSUER',
+  'OIDC_JWKS_URI',
+  'OIDC_AUDIENCE',
+];
 
 for (const key of REQUIRED) {
   if (!process.env[key] || process.env[key].trim() === '') {
@@ -22,4 +28,7 @@ module.exports = Object.freeze({
   PORT: port,
   DATABASE_FILE: process.env.DATABASE_FILE,
   NODE_ENV: process.env.NODE_ENV || 'development',
+  OIDC_ISSUER: process.env.OIDC_ISSUER,
+  OIDC_JWKS_URI: process.env.OIDC_JWKS_URI,
+  OIDC_AUDIENCE: process.env.OIDC_AUDIENCE,
 });

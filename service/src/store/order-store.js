@@ -17,13 +17,18 @@ function getById(id) {
   return findByIdStmt.get(id) || null;
 }
 
-function getAll({ status, limit = 20, cursor } = {}) {
+function getAll({ status, limit = 20, cursor, customerId } = {}) {
   const conditions = [];
   const params = [];
 
   if (status) {
     conditions.push('status = ?');
     params.push(status);
+  }
+
+  if (customerId) {
+    conditions.push('customer_id = ?');
+    params.push(customerId);
   }
 
   if (cursor) {

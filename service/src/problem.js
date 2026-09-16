@@ -73,6 +73,28 @@ function internalError(instance) {
   );
 }
 
+function unauthorized(instance, error = 'invalid_token') {
+  return createProblem(
+    'https://api.example.com/problems/unauthorized',
+    'Unauthorized',
+    401,
+    'Authentication is required to access this resource.',
+    instance,
+    { error },
+  );
+}
+
+function forbidden(instance, scopes) {
+  return createProblem(
+    'https://api.example.com/problems/forbidden',
+    'Forbidden',
+    403,
+    'The authenticated principal does not have the required scope.',
+    instance,
+    { requiredScopes: scopes },
+  );
+}
+
 module.exports = {
   createProblem,
   sendProblem,
@@ -82,4 +104,6 @@ module.exports = {
   orderNotCancellable,
   unprocessable,
   internalError,
+  unauthorized,
+  forbidden,
 };
