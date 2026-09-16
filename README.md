@@ -55,13 +55,16 @@ peran yang sama dua periode berturut-turut.
 | **Client Owner** | Klien yang dihadapi pengguna; pelaporan tertulis atas ambiguitas dalam kontrak |
 | **Integration Owner** | Mock server, contract test, koordinasi dengan kelompok mitra (Pertemuan 7) |
 
-Pembagian peran pada 3 pertemuan pertama:
-| Nama | Peran |
-| :--- | :--- |
-| Aya | Service Owner |
-| Tori | Client Owner |
-| Kevin | Contract Owner |
-| Faris | Integration Owner |
+| Nama | Pertemuan 1–3 | Pertemuan 4–6 |
+| :--- | :--- | :--- |
+| Aya | Service Owner | Client Owner |
+| Tori | Client Owner | Integration Owner |
+| Kevin | Contract Owner | Service Owner |
+| Faris | Integration Owner | Contract Owner |
+
+Keputusan awal autentikasi tahap 1 dicatat di
+[`docs/decisions/0003-autentikasi.md`](docs/decisions/0003-autentikasi.md).
+Statusnya usulan untuk review tim; konfigurasi dan bukti pengujian auth belum dilakukan.
 
 ---
 
