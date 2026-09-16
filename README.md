@@ -64,6 +64,8 @@ peran yang sama dua periode berturut-turut.
 
 Keputusan awal autentikasi tahap 1 dicatat di
 [`docs/decisions/0003-autentikasi.md`](docs/decisions/0003-autentikasi.md).
+Spesifikasi kontrak final, scope vocabulary, dan handoff tahap 4 didokumentasikan di
+[`docs/p4-contract-handoff.md`](docs/p4-contract-handoff.md).
 Setup authorization server lokal tahap 3 dan hasil verifikasinya tersedia di
 [`docs/p4-authorization-server.md`](docs/p4-authorization-server.md).
 Keycloak memakai tambahan `docker-compose.auth.yml`; Compose service laundry

@@ -56,14 +56,43 @@ Health check: `http://127.0.0.1:8080/health`
 
 ## Daftar Endpoint
 
-| Method | Path | Status |
+| Method | Path | Security | Scope Wajib | Status |
+|---|---|---|---|---|
+| GET | `/health` | Public (`security: []`) | - | Selesai (P3) |
+| GET | `/v1/orders` | OAuth2 Bearer | `orders:read` | Selesai (P3 baseline) |
+| GET | `/v1/orders/{orderId}` | OAuth2 Bearer | `orders:read` | Selesai (P3 baseline) |
+| POST | `/v1/orders` | OAuth2 Bearer | `orders:write` | Selesai (P3 baseline) |
+| POST | `/v1/orders/{orderId}/cancellation` | OAuth2 Bearer | `orders:write` | Selesai (P3 baseline) |
+| GET | `/v1/pickups` | OAuth2 Bearer | `pickups:read` | Belum masuk scope P3/P4 backend |
+
+## Scope Vocabulary (P4)
+
+Scope dirancang dengan format `resource:action` merepresentasikan capability aktor, konsisten antara `openapi.yaml`, Authorization Server (Keycloak), dan kode backend:
+
+| Scope | Deskripsi Capability | Pemegang Utama | Operation di Kontrak |
+|---|---|---|---|
+| `orders:read` | Membaca daftar dan detail laundry order dalam kewenangan caller | Customer (`student`), Staff (`staff-outlet`), Scheduled Job | `listOrders`, `getOrder` |
+| `orders:write` | Membuat order baru dan membatalkan order milik caller | Customer (`student`) | `createOrder`, `cancelOrder` |
+| `pickups:read` | Membaca daftar dan detail penjemputan cucian | Driver (`courier`), Staff (`staff-outlet`), Scheduled Job | `listPickups` |
+| `orders:fulfil` | Mengelola pemrosesan order dan pemenuhan cucian | Staff (`staff-outlet`) | Operasi domain staf |
+| `pickups:write` | Memperbarui status penjemputan cucian yang ditugaskan | Driver (`courier`) | Operasi domain kurir |
+
+## Object Ownership Rules (P4)
+
+Backend menerapkan tiga lapisan pemeriksaan akses secara terpisah dan berurutan:
+1. **Layer 1 - Authentication**: Verifikasi token JWT via JWKS (`exp`, `iss`, `aud`, RS256). Gagal -> `401 Unauthorized` dengan header `WWW-Authenticate`.
+2. **Layer 2 - Scope Check**: Verifikasi token memiliki scope yang dibutuhkan. Evaluasi dilakukan **sebelum query database dijalankan**. Gagal -> `403 Forbidden`.
+3. **Layer 3 - Object Ownership Check**: Verifikasi caller berwenang atas data/objek spesifik.
+
+### Aturan Kepemilikan Per Route
+
+| Route | Predicate & Aturan Akses Objek | Penolakan Bukan Milik |
 |---|---|---|
-| GET | `/health` | selesai |
-| GET | `/v1/orders` | selesai |
-| GET | `/v1/orders/{orderId}` | selesai |
-| POST | `/v1/orders` | selesai |
-| POST | `/v1/orders/{orderId}/cancellation` | selesai |
-| GET | `/v1/pickups` | tidak masuk scope P3 |
+| `GET /v1/orders` | Customer hanya melihat order miliknya (`WHERE customer_id = principal.id`). Staff melihat order dalam kewenangan outletnya. Pembatasan wajib dilakukan di query database, bukan filter memori. | - (list difilter di query) |
+| `POST /v1/orders` | Customer hanya boleh membuat order untuk dirinya sendiri (`body.customerId === principal.id`). Mencegah pembuatan order atas nama identitas lain. | `403 Forbidden` / `422` jika subject tidak cocok |
+| `GET /v1/orders/{orderId}` | Order di-load dari DB. Jika order tidak ada -> 404. Jika order milik user lain -> **404 Not Found identik** (mencegah probing keberadaan resource). | `404 Not Found` |
+| `POST /v1/orders/{orderId}/cancellation` | Order di-load dari DB. Jika tidak ada atau bukan milik caller -> **404 Not Found identik** (TIDAK return 403!). Mutasi pembatalan dan pengecekan status hanya dieksekusi setelah ownership terbukti valid. | `404 Not Found` |
+| `GET /v1/pickups` | Driver hanya melihat penjemputan miliknya (`WHERE driver_id = principal.id`). Staff melihat penjemputan outletnya. Filter diterapkan pada query database. | - (list difilter di query) |
 
 Bukti pengujian curl dan JSON output lengkap dapat dilihat di [EVIDENCE.md](EVIDENCE.md).
 
@@ -107,21 +136,24 @@ curl -i -X POST http://127.0.0.1:8080/v1/orders/ord_seed001/cancellation \
 
 ## Failure Mapping
 
-| Kondisi | Status | Problem Type |
-|---|---|---|
-| JSON malformed | 400 | `bad-request` |
-| Field wajib hilang | 400 | `bad-request` |
-| Tipe field salah | 400 | `bad-request` |
-| Order ID malformed | 400 | `bad-request` |
-| Idempotency-Key hilang | 400 | `bad-request` |
-| Idempotency-Key bukan UUID v4 | 400 | `bad-request` |
-| Limit di luar range | 400 | `bad-request` |
-| Status filter tidak valid | 400 | `bad-request` |
-| Order tidak ditemukan | 404 | `not-found` |
-| Idempotency key + body berbeda | 409 | `idempotency-conflict` |
-| Cancellation status tidak diizinkan | 409 | `order-not-cancellable` |
-| Domain validation gagal | 422 | `validation-failed` |
-| Unexpected error | 500 | `internal-error` |
+| Kondisi | Status | Problem Type | Catatan / Header |
+|---|---|---|---|
+| Token hilang, invalid, expired, signature salah | 401 | `unauthorized` | `WWW-Authenticate: Bearer realm="Laundry API", error="..."` |
+| Token valid tapi scope kurang | 403 | `forbidden` | Evaluasi scope mendahului query database |
+| Order tidak ditemukan | 404 | `not-found` | Resource absent |
+| Order ada tapi bukan milik caller | 404 | `not-found` | Resource not-owned (body identik dengan absent) |
+| JSON malformed | 400 | `bad-request` | - |
+| Field wajib hilang | 400 | `bad-request` | - |
+| Tipe field salah | 400 | `bad-request` | - |
+| Order ID malformed | 400 | `bad-request` | - |
+| Idempotency-Key hilang | 400 | `bad-request` | - |
+| Idempotency-Key bukan UUID v4 | 400 | `bad-request` | - |
+| Limit di luar range | 400 | `bad-request` | - |
+| Status filter tidak valid | 400 | `bad-request` | - |
+| Idempotency key + body berbeda | 409 | `idempotency-conflict` | - |
+| Cancellation status tidak diizinkan | 409 | `order-not-cancellable` | - |
+| Domain validation gagal | 422 | `validation-failed` | Problem extension `invalidFields` |
+| Unexpected error | 500 | `internal-error` | - |
 
 Semua error menggunakan `Content-Type: application/problem+json`.
 
@@ -162,8 +194,8 @@ curl http://127.0.0.1:8080/v1/orders/<order-id-3>
 
 ## Known Issues
 
-- `GET /v1/pickups` belum diimplementasikan (tidak masuk scope P3).
-- Authentication/authorization belum diimplementasikan (deferred per kontrak).
+- `GET /v1/pickups` belum diimplementasikan di backend (direncanakan bertahap).
+- Status P4: Kontrak API v1.0.0 (`openapi.yaml`), changelog breaking change, dan Keycloak 26.7.3 telah selesai (Tahap 1-4). Integrasi middleware authentication, scope, dan object ownership pada backend service dikerjakan pada Tahap 5-9 (Kevin).
 - `invalidFields` dikirim sebagai extension Problem Details pada error validasi request.
 
 ## P3 Verification Commands
