@@ -112,10 +112,10 @@ penolakan PKCE hilang/plain. Login admin khusus setup memakai `admin-cli` realm
 master; password grant tetap mati untuk seluruh client aplikasi laundry.
 
 Pemeriksaan ini tidak menguji middleware service, empat negative test object,
-atau CI tahap 11/12. Urutan RT1 -> RT2 -> reuse RT1 -> penolakan RT2 tetap perlu
-bukti pada tahap 10; setting rotation saja bukan bukti family revocation.
+atau CI tahap 11/12. Urutan RT1 -> RT2 -> reuse RT1 -> penolakan RT2 dibuktikan
+terpisah pada tahap 10; setting rotation saja bukan bukti family revocation.
 
-Status live (16 September 2026): **LULUS pemeriksaan setup tahap 3 lokal**.
+Status live (17 September 2026): **LULUS pemeriksaan setup tahap 3 lokal**.
 
 - Realm berhasil diimpor pada Keycloak 26.7.3; discovery/JWKS cocok dengan tabel.
 - Tiga client dan enam user uji tersedia, termasuk role serta pembatasan scope.
@@ -124,7 +124,7 @@ Status live (16 September 2026): **LULUS pemeriksaan setup tahap 3 lokal**.
 - Client Credentials menghasilkan JWT RS256 audience `laundry-api`, hanya scope
   baca, dan tanpa refresh token.
 - Rotation aktif dengan maximum reuse 0; bukti runtime pencabutan seluruh family
-  belum dijalankan dan tetap menjadi checkpoint tahap 10.
+  lulus pada tahap 10 dan dicatat di bawah.
 
 Command verifikasi: `node auth/keycloak/verify.mjs`. Output aman tersimpan di
 [p4-keycloak-verification.txt](p4-keycloak-verification.txt).
@@ -132,6 +132,27 @@ Compose laundry milik Service Owner tidak diubah; tambahan auth dapat digabung
 ketika diperlukan menggunakan `-f docker-compose.yml -f docker-compose.auth.yml`.
 Jangan menjalankan gabungan tersebut sampai memang ingin menyalakan service
 laundry juga. Image/data service P3 tidak disentuh oleh pemeriksaan ini.
+
+## Bukti tahap 10 - refresh-token rotation
+
+Jalankan setelah Keycloak aktif:
+
+```bash
+node auth/keycloak/test-refresh-rotation.mjs
+```
+
+Script melakukan login Authorization Code + PKCE pada web dan mobile, lalu
+menjalankan urutan yang diwajibkan tugas. Nilai token tidak pernah dicetak:
+
+| Client | RT1 -> RT2 berbeda | Reuse RT1 | RT2 setelah reuse |
+|---|---|---|---|
+| `laundry-web` | Lulus | Lulus (`invalid_grant`) | Lulus (`invalid_grant`) |
+| `laundry-mobile` | Lulus | Lulus (`invalid_grant`) | Lulus (`invalid_grant`) |
+
+Bukti terakhir dijalankan pada 17 September 2026. Hasil tersanitasi ada di
+[`docs/p4-refresh-rotation-verification.txt`](p4-refresh-rotation-verification.txt).
+Pengujian ini membuktikan rotation dan pencabutan family pada Keycloak lokal;
+ini bukan bukti deployment production atau Auth0 hosted.
 
 ## Referensi
 

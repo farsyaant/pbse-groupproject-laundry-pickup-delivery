@@ -158,26 +158,30 @@ tahap 10. Tidak ada test auth baru yang dijalankan atau diklaim lulus di tahap 1
 
 ### 7. Refresh-token rotation dan reuse detection
 
-**Status bukti: BELUM DIUJI.** Tenant/client belum dikonfigurasi pada pekerjaan ini.
-Dokumentasi provider menjadi dasar pilihan, bukan bukti runtime proyek.
+**Status bukti: LULUS pada Keycloak lokal (17 September 2026).** Dokumentasi
+provider menjadi dasar pilihan; bukti runtime tersimpan terpisah dan tidak berisi
+nilai token.
 
 Target setting tahap 3: rotation aktif untuk web/mobile; gunakan overlap period
 0 detik untuk pengujian reuse yang tegas. Auth0 mendokumentasikan bahwa selama
 overlap period, penggunaan ulang token sebelumnya dapat diizinkan tanpa memicu
 deteksi. Lihat [Configure Refresh Token Rotation](https://auth0.com/docs/secure/tokens/refresh-tokens/configure-refresh-token-rotation).
 
-Rencana bukti tahap 10, diulang untuk web dan mobile dengan sesi uji terpisah:
+Bukti tahap 10, diulang untuk web dan mobile dengan sesi uji terpisah:
 
-| Langkah | Hasil yang harus dibuktikan | Hasil aktual tahap 1 |
+| Langkah | Hasil yang harus dibuktikan | Hasil aktual tahap 10 |
 |---|---|---|
-| Login lalu gunakan RT1 untuk refresh | Sukses dan menerima RT2; perbandingan dalam memori menunjukkan RT2 berbeda dari RT1 | Belum diuji |
-| Gunakan RT1 kembali | Ditolak dan reuse terdeteksi | Belum diuji |
-| Gunakan RT2 setelah reuse RT1 | Ditolak karena seluruh refresh-token family dicabut | Belum diuji |
+| Login lalu gunakan RT1 untuk refresh | Sukses dan menerima RT2; perbandingan dalam memori menunjukkan RT2 berbeda dari RT1 | Lulus pada Keycloak lokal, web dan mobile (17 September 2026) |
+| Gunakan RT1 kembali | Ditolak dan reuse terdeteksi | Lulus: `invalid_grant`, web dan mobile |
+| Gunakan RT2 setelah reuse RT1 | Ditolak karena seluruh refresh-token family dicabut | Lulus: `invalid_grant`, web dan mobile |
 
-Catatan bukti nantinya memuat waktu UTC, jenis client, setting provider yang telah
+Catatan bukti memuat waktu UTC, jenis client, setting provider yang telah
 disanitasi, status/error aktual, event reuse yang relevan, dan hasil perbandingan
 boolean. Jangan merekam nilai token atau raw token-endpoint response. Ketiga
-baris harus berhasil dibuktikan; menolak RT1 saja belum membuktikan family revocation.
+baris telah berhasil dibuktikan pada Keycloak lokal; menolak RT1 saja memang belum
+membuktikan family revocation.
+Pemeriksaan runtime yang disanitasi ada di
+[p4-refresh-rotation-verification.txt](../p4-refresh-rotation-verification.txt).
 Pencabutan refresh-token family tidak berarti JWT access token yang sudah terbit
 langsung tidak berlaku; masa berlaku pendek membatasi sisa masa penggunaannya.
 

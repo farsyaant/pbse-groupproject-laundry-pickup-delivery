@@ -1,0 +1,27 @@
+P4 Tahap 10 - Refresh Token Rotation Verification
+Tanggal: 17 September 2026
+Provider: Keycloak 26.7.3 lokal, realm laundry
+Setting: revokeRefreshToken=true, refreshTokenMaxReuse=0
+
+PASS laundry-web: RT1 -> RT2 rotation passed; RT1 reuse rejected; RT2 rejected after family revocation
+PASS laundry-mobile: RT1 -> RT2 rotation passed; RT1 reuse rejected; RT2 rejected after family revocation
+No refresh-token values or raw token responses were printed.
+
+Scope pengujian:
+- Authorization Code + PKCE login dilakukan untuk masing-masing public client.
+- RT1 dipakai satu kali dan menghasilkan RT2 yang berbeda.
+- RT1 dipakai ulang dan ditolak dengan invalid_grant.
+- RT2 dipakai setelah deteksi reuse dan ditolak dengan invalid_grant.
+
+Catatan: Bukti ini berlaku untuk authorization server Keycloak lokal pada mesin
+pengujian. Ini bukan bukti deployment production atau Auth0 hosted.
+
+Checklist tahap 10:
+- RT1 dipakai dan menghasilkan RT2 yang berbeda: LULUS untuk web dan mobile.
+- RT1 dipakai ulang dan ditolak: LULUS (`invalid_grant`) untuk web dan mobile.
+- RT2 ditolak setelah reuse terdeteksi: LULUS (`invalid_grant`) untuk web dan mobile.
+- Setting provider dan hasil bukti dicatat pada ADR 0003: LULUS.
+- Access token berumur pendek: LULUS, konfigurasi 300 detik.
+- Refresh token tidak pernah dipanggil ke resource API: LULUS, script hanya
+  mengirimkannya ke token endpoint provider.
+- Penyimpanan token client: didokumentasikan; implementasi web/mobile belum ada.
