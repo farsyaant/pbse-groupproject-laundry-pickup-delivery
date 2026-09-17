@@ -29,10 +29,29 @@ jobs:
           cd service
           pnpm install
 
+      # Prism answers HEAD / and HEAD /health with 404 / 405, so a plain
+      # `wait-on http://host:port` probe (which sends HEAD) never turns green.
+      # Probe with an explicit GET on the health path instead.
       - name: Start Prism contract mock
         run: |
-          pnpm --package=@stoplight/prism-cli dlx prism mock openapi.yaml -p 4010 > prism-ci.log 2>&1 &
-          pnpm --package=wait-on dlx wait-on http://127.0.0.1:4010 --timeout 30000
+          set -euo pipefail
+          nohup pnpm --package=@stoplight/prism-cli dlx prism mock openapi.yaml -p 4010 > prism-ci.log 2>&1 &
+          PRISM_PID=$!
+          for attempt in $(seq 1 40); do
+            if curl -fsS --max-time 2 http://127.0.0.1:4010/health > /dev/null; then
+              echo "Prism ready after ${attempt} attempt(s)"
+              exit 0
+            fi
+            if ! kill -0 "$PRISM_PID" 2>/dev/null; then
+              echo "::error::Prism process exited before becoming ready"
+              cat prism-ci.log
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "::error::Prism did not become ready in 40s"
+          cat prism-ci.log
+          exit 1
 
       - name: Run Contract Tests against Prism
         run: |
@@ -45,3 +64,7 @@ jobs:
       - name: Run Redocly OpenAPI Lint
         run: |
           pnpm --package=@redocly/cli dlx redocly lint openapi.yaml
+
+      - name: Show Prism log on failure
+        if: failure()
+        run: cat prism-ci.log || true
