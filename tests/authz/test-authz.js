@@ -101,6 +101,45 @@ async function main() {
       headers: { Authorization: `Bearer ${edited}` },
     });
     assert.equal(editedResponse.status, 401);
+    
+        // --- Tambahan: /health tetap public ---
+    const healthCheck = await fetch(`${base}/health`);
+    assert.equal(healthCheck.status, 200);
+
+    // --- Tambahan: expired token → 401 ---
+    const expiredToken = await token('student-a', 'cus_studentA', ['orders:read'], 'expired');
+    const expiredResponse = await fetch(`${base}/v1/orders`, {
+      headers: { Authorization: `Bearer ${expiredToken}` },
+    });
+    assert.equal(expiredResponse.status, 401);
+
+    // --- Tambahan: unauthorized write tidak mengubah database ---
+    const beforeCancel = await fetch(`${base}/v1/orders/${order.id}`, {
+      headers: { Authorization: `Bearer ${writeB}` },
+    });
+    const beforeCancelBody = await beforeCancel.json();
+
+    const cancelAttempt = await fetch(`${base}/v1/orders/${order.id}/cancellation`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${writeA}`,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': crypto.randomUUID(),
+      },
+    });
+    assert.equal(cancelAttempt.status, 404);
+
+    const afterCancel = await fetch(`${base}/v1/orders/${order.id}`, {
+      headers: { Authorization: `Bearer ${writeB}` },
+    });
+    const afterCancelBody = await afterCancel.json();
+    assert.deepEqual(beforeCancelBody, afterCancelBody);
+
+    // --- Tambahan: token tidak bocor di response error ---
+    const errorBodyText = await (await fetch(`${base}/v1/orders`, {
+      headers: { Authorization: `Bearer ${edited}` },
+    })).text();
+    assert.ok(!errorBodyText.includes(edited));
 
     console.log('Authz tests passed');
   } finally {
@@ -115,15 +154,22 @@ async function main() {
     }
   }
 
-  async function token(subject, domainId, scopes) {
-    return new SignJWT({ scope: scopes.join(' '), fixture_domain_id: domainId })
+  async function token(subject, domainId, scopes, expiresIn = '5m') {
+    const builder = new SignJWT({ scope: scopes.join(' '), fixture_domain_id: domainId })
       .setProtectedHeader({ alg: 'RS256', kid: 'authz-test' })
       .setIssuer(issuer)
       .setAudience(audience)
       .setSubject(subject)
-      .setIssuedAt()
-      .setExpirationTime('5m')
-      .sign(privateKey);
+      .setIssuedAt();
+
+    if (expiresIn === 'expired') {
+      // Timestamp 1 jam yang lalu, dalam detik (Unix epoch)
+      builder.setExpirationTime(Math.floor(Date.now() / 1000) - 3600);
+    } else {
+      builder.setExpirationTime(expiresIn);
+    }
+
+    return builder.sign(privateKey);
   }
 }
 
