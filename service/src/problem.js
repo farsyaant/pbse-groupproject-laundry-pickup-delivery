@@ -21,12 +21,15 @@ function badRequest(detail, instance, extras) {
   );
 }
 
-function notFound(detail, instance) {
+function notFound(instance) {
+  // Deliberately constant. "The object does not exist" and "the object exists
+  // but is not accessible to this caller" must produce byte-identical
+  // responses, otherwise the body itself enumerates identifiers.
   return createProblem(
     'https://api.example.com/problems/not-found',
     'Resource not found',
     404,
-    detail,
+    'The requested resource was not found.',
     instance,
   );
 }

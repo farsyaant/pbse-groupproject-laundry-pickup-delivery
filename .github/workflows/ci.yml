@@ -2,7 +2,7 @@ name: Contract Test CI
 
 on:
   push:
-    branches: [ main, integration-owner ]
+    branches: [ main, integration-owner, service-owner ]
   pull_request:
     branches: [ main ]
 
@@ -57,9 +57,24 @@ jobs:
         run: |
           BASE_URL="http://127.0.0.1:4010" node tests/contract/test-contract.js
 
+      # Layer 1/2/3 authorization tests. The suite mints its own tokens from a
+      # test-only signing key and boots the service against a local JWKS, so CI
+      # needs no network access to a live authorization server.
       - name: Run Authorization Tests
         run: |
           pnpm --dir service run test:authz
+
+      # The Session 3 contract suite re-run against the authenticated service:
+      # the contract is unchanged, the runner now supplies a bearer token.
+      - name: Run Contract Tests against the authenticated service
+        run: |
+          pnpm --dir service run test:contract
+
+      - name: Run persistence and idempotency checks
+        run: |
+          pnpm --dir service run test:migration
+          pnpm --dir service run test:persistence
+          pnpm --dir service run test:concurrency
 
       - name: Run Redocly OpenAPI Lint
         run: |

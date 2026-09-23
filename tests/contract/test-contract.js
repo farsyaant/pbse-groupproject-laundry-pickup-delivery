@@ -21,6 +21,11 @@ const BASE_URL = RAW_BASE_URL.replace(/\/+$/, '');
 const CONFIG = {
   baseUrl: BASE_URL,
     isLiveService: BASE_URL.includes(':8080') || BASE_URL.includes('pbse.kevinio.my.id') || process.env.IS_LIVE === 'true',
+  // The contract is unchanged by P4; what changed is that protected operations
+  // now need a real bearer token. The Prism mock ignores the value, the live
+  // service verifies it, so the runner supplies one instead of editing the
+  // contract or weakening the service.
+  authToken: process.env.AUTH_TOKEN || 'mock_token',
   endpoints: {
     collection: process.env.ENDPOINT_COLLECTION || '/orders',
     filterParam: process.env.ENDPOINT_FILTER || 'status=pending_pickup',
@@ -69,7 +74,7 @@ async function runTests() {
     const res1 = await fetch(urlCollection, {
       headers: {
         Accept: 'application/json',
-        Authorization: 'Bearer mock_token',
+        Authorization: `Bearer ${CONFIG.authToken}`,
       },
     });
 
@@ -91,7 +96,7 @@ async function runTests() {
     const res2 = await fetch(urlFilter, {
       headers: {
         Accept: 'application/json',
-        Authorization: 'Bearer mock_token',
+        Authorization: `Bearer ${CONFIG.authToken}`,
       },
     });
 
@@ -114,7 +119,7 @@ async function runTests() {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Authorization': 'Bearer mock_token',
+        'Authorization': `Bearer ${CONFIG.authToken}`,
         'Idempotency-Key': idempotencyKey,
       },
       body: JSON.stringify(CONFIG.samplePayload),
@@ -143,7 +148,7 @@ async function runTests() {
       console.log(`Request: GET ${urlSingle}`);
 
       const resSingle = await fetch(urlSingle, {
-        headers: { Accept: 'application/json', Authorization: 'Bearer mock_token' },
+        headers: { Accept: 'application/json', Authorization: `Bearer ${CONFIG.authToken}` },
       });
 
       assert(resSingle.status === 200, `Expected status 200, got ${resSingle.status}`);
@@ -162,7 +167,7 @@ async function runTests() {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Authorization': 'Bearer mock_token',
+        'Authorization': `Bearer ${CONFIG.authToken}`,
         'Idempotency-Key': idempotencyKey,
       },
       body: JSON.stringify(CONFIG.samplePayload),
@@ -183,7 +188,7 @@ async function runTests() {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json, application/problem+json',
-        'Authorization': 'Bearer mock_token',
+        'Authorization': `Bearer ${CONFIG.authToken}`,
         'Idempotency-Key': idempotencyKey,
       },
       body: JSON.stringify(diffPayload),
@@ -206,7 +211,7 @@ async function runTests() {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json, application/problem+json',
-        'Authorization': 'Bearer mock_token',
+        'Authorization': `Bearer ${CONFIG.authToken}`,
       },
       body: JSON.stringify(CONFIG.samplePayload),
     });
@@ -232,13 +237,13 @@ async function runTests() {
     logHeader('Skenario 8: Negative Tests (Malformed ID -> 400, Non-existent ID -> 404)');
     const urlMalformed = `${CONFIG.baseUrl}${CONFIG.endpoints.collection}/invalid!id!format`;
     const resMalformed = await fetch(urlMalformed, {
-      headers: { Accept: 'application/json', Authorization: 'Bearer mock_token' },
+      headers: { Accept: 'application/json', Authorization: `Bearer ${CONFIG.authToken}` },
     });
     assert(resMalformed.status === 400, `Expected 400 for malformed ID, got ${resMalformed.status}`);
 
     const urlNotFound = `${CONFIG.baseUrl}${CONFIG.endpoints.collection}/ord_0000000000`;
     const resNotFound = await fetch(urlNotFound, {
-      headers: { Accept: 'application/json, application/problem+json', Authorization: 'Bearer mock_token', Prefer: 'code=404' },
+      headers: { Accept: 'application/json, application/problem+json', Authorization: `Bearer ${CONFIG.authToken}`, Prefer: 'code=404' },
     });
     assert(resNotFound.status === 404, `Expected status 404 Not Found, got ${resNotFound.status}`);
 
@@ -250,7 +255,7 @@ async function runTests() {
     console.log(`Request: GET ${urlPagination}`);
 
     const resPagination = await fetch(urlPagination, {
-      headers: { Accept: 'application/json', Authorization: 'Bearer mock_token' },
+      headers: { Accept: 'application/json', Authorization: `Bearer ${CONFIG.authToken}` },
     });
 
     assert(resPagination.status === 200, `Expected status 200, got ${resPagination.status}`);
@@ -268,7 +273,7 @@ async function runTests() {
     console.log(`Request: GET ${urlEmpty}`);
 
     const resEmpty = await fetch(urlEmpty, {
-      headers: { Accept: 'application/json', Authorization: 'Bearer mock_token' },
+      headers: { Accept: 'application/json', Authorization: `Bearer ${CONFIG.authToken}` },
     });
 
     assert(resEmpty.status === 200, `Expected status 200 for empty collection, got ${resEmpty.status}`);
@@ -290,7 +295,7 @@ async function runTests() {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json, application/problem+json',
-        'Authorization': 'Bearer mock_token',
+        'Authorization': `Bearer ${CONFIG.authToken}`,
         'Idempotency-Key': crypto.randomUUID(),
       },
       body: JSON.stringify(invalidPayload),
@@ -320,7 +325,7 @@ async function runTests() {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json, application/problem+json',
-        'Authorization': 'Bearer mock_token',
+        'Authorization': `Bearer ${CONFIG.authToken}`,
         'Idempotency-Key': crypto.randomUUID(),
       },
       body: JSON.stringify(domainInvalidPayload),

@@ -6,7 +6,13 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
-    "test:authz": "node ../tests/authz/test-authz.js"
+    "test:authz": "node ../tests/authz/test-authz.js",
+    "test:authz-live": "node ../tests/authz/verify-checks-are-live.js",
+    "test:contract": "node ../tests/contract/run-against-service.js",
+    "test:persistence": "node ../tests/contract/test-persistence-restart.js",
+    "test:concurrency": "node ../tests/contract/test-idempotency-concurrency.js",
+    "test:migration": "node ../tests/contract/check-legacy-migration.js",
+    "test": "npm run test:migration && npm run test:authz && npm run test:contract && npm run test:persistence && npm run test:concurrency"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",
