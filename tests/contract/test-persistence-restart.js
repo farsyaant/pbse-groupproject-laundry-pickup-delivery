@@ -1,76 +1,106 @@
 'use strict';
 
-const crypto = require('crypto');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const { spawn } = require('child_process');
+/**
+ * Persistence check: create three entities, restart the service, read all
+ * three back. P4 only adds a bearer token to the same requests, so the contract
+ * behaviour under test is unchanged.
+ *
+ * Run with:  node tests/contract/test-persistence-restart.js
+ */
 
-const serviceRoot = path.resolve(__dirname, '../../service');
-const port = 18080 + Math.floor(Math.random() * 1000);
-const databaseFile = path.join(os.tmpdir(), `laundry-p3-${crypto.randomUUID()}.sqlite`);
-const baseUrl = `http://127.0.0.1:${port}/v1`;
-const orders = [1, 2, 3].map((number) => ({
-  customerId: `cus_restart${number}${crypto.randomBytes(4).toString('hex')}`,
-  serviceType: 'wash_fold',
-  weightKg: number + 1.5,
-  pickupAddress: `Restart test address ${number}`,
-}));
+const crypto = require('node:crypto');
+const path = require('node:path');
 
-let child;
+const {
+  freePort,
+  startTestIssuer,
+  startService,
+  waitForHealth,
+  tempDatabaseFile,
+  removeDatabase,
+  stopChild,
+} = require('../helpers/harness');
 
-function startService() {
-  child = spawn(process.execPath, ['src/app.js'], {
-    cwd: serviceRoot,
-    env: { ...process.env, PORT: String(port), DATABASE_FILE: databaseFile, NODE_ENV: 'test' },
-    stdio: 'ignore',
-  });
-}
+const issuerPort = freePort(6);
+const port = freePort(7);
+const databaseFile = tempDatabaseFile('persistence');
 
-function stopService() {
-  if (child && !child.killed) child.kill();
-}
+const orders = [1, 2, 3].map((number) => {
+  const suffix = crypto.randomBytes(4).toString('hex');
+  return {
+    customerId: `cus_restart${number}${suffix}`,
+    serviceType: 'wash_fold',
+    weightKg: number + 1.5,
+    pickupAddress: `Restart test address ${number}`,
+  };
+});
 
-async function waitForHealth() {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}/health`);
-      if (response.status === 200) return;
-    } catch {
-      // Service is still starting.
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error('Service did not become healthy within 5 seconds');
-}
-
-async function createOrder(order) {
-  const response = await fetch(`${baseUrl}/orders`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
-    body: JSON.stringify(order),
-  });
-  if (response.status !== 201) throw new Error(`Create failed with ${response.status}`);
-  return response.json();
-}
-
-async function readOrder(id) {
-  const response = await fetch(`${baseUrl}/orders/${id}`);
-  if (response.status !== 200) throw new Error(`Read failed with ${response.status}`);
-  return response.json();
-}
+let child = null;
 
 async function main() {
+  const issuer = await startTestIssuer({ port: issuerPort });
+  const baseUrl = `http://127.0.0.1:${port}/v1`;
+
+  // One token per fixture customer: the service binds each token to a domain
+  // identity, so an order may only be created for the identity it names.
+  const tokens = new Map();
+  for (const order of orders) {
+    tokens.set(order.customerId, await issuer.token('student-a', {
+      domainId: order.customerId,
+      scopes: ['orders:read', 'orders:write'],
+    }));
+  }
+
+  const boot = () => startService({
+    port,
+    databaseFile,
+    issuer: issuer.issuer,
+    jwksUri: issuer.jwksUri,
+    audience: issuer.audience,
+  });
+
+  const tokenByOrderId = new Map();
+
+  async function createOrder(order) {
+    const response = await fetch(`${baseUrl}/orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tokens.get(order.customerId)}`,
+        'Idempotency-Key': crypto.randomUUID(),
+      },
+      body: JSON.stringify(order),
+    });
+    if (response.status !== 201) throw new Error(`Create failed with ${response.status}`);
+    const created = await response.json();
+    // Remember which customer owns the created order so it can be read back
+    // with that customer's token.
+    tokenByOrderId.set(created.id, tokens.get(order.customerId));
+    return created;
+  }
+
+  async function readOrder(id) {
+    const response = await fetch(`${baseUrl}/orders/${id}`, {
+      headers: { Authorization: `Bearer ${tokenByOrderId.get(id)}` },
+    });
+    if (response.status !== 200) throw new Error(`Read failed with ${response.status}`);
+    return response.json();
+  }
+
   try {
-    startService();
-    await waitForHealth();
-    const created = await Promise.all(orders.map(createOrder));
+    child = boot();
+    await waitForHealth(port);
+
+    const created = [];
+    for (const order of orders) {
+      created.push(await createOrder(order));
+    }
     const ids = created.map((order) => order.id);
 
-    stopService();
-    child = null;
-    startService();
-    await waitForHealth();
+    await stopChild(child);
+    child = boot();
+    await waitForHealth(port);
+
     const restored = await Promise.all(ids.map(readOrder));
 
     if (restored.length !== 3 || restored.some((order, index) => order.id !== ids[index])) {
@@ -79,14 +109,9 @@ async function main() {
 
     console.log(JSON.stringify({ createdIds: ids, restoredIds: restored.map((order) => order.id) }));
   } finally {
-    stopService();
-    for (const suffix of ['', '-wal', '-shm']) {
-      try {
-        fs.unlinkSync(`${databaseFile}${suffix}`);
-      } catch {
-        // Temporary database may already be removed.
-      }
-    }
+    await stopChild(child);
+    await issuer.close();
+    removeDatabase(databaseFile);
   }
 }
 

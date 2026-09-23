@@ -10,9 +10,18 @@ function principalFromClaims(claims) {
       : []),
   ];
 
+  const domainId = claims.fixture_domain_id || claims.sub;
+
+  // A staff principal acts for exactly one outlet. The outlet identifier comes
+  // from a provider claim; it is never derived from the request, because a
+  // caller must not be able to pick which outlet they act for.
+  const outletId =
+    claims.outlet_id || (roles.includes('staff') ? domainId : null);
+
   return {
     subject: claims.sub,
-    domainId: claims.fixture_domain_id || claims.sub,
+    domainId,
+    outletId,
     kind: claims.azp === claims.sub || claims.clientId ? 'service' : 'user',
     roles,
     scopes: String(claims.scope || '').split(' ').filter(Boolean),
