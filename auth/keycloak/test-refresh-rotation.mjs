@@ -2,13 +2,24 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { randomBytes, createHash } from 'node:crypto';
 
-const origin = 'http://localhost:8081';
+/**
+ * Step 10 evidence: refresh-token rotation and family revocation.
+ *
+ * Usage:
+ *   node auth/keycloak/test-refresh-rotation.mjs                          # localhost:8081
+ *   node auth/keycloak/test-refresh-rotation.mjs https://keycloak.example.com
+ *
+ * User passwords come from `auth/keycloak/.runtime/credentials.json`, which is
+ * gitignored. No refresh-token value or raw token response is ever printed.
+ */
+
+const origin = (process.argv[2] || 'http://localhost:8081').replace(/\/+$/, '');
 const issuer = `${origin}/realms/laundry`;
-const credentials = JSON.parse(await readFile(new URL('./.runtime/credentials.json', import.meta.url)));
+const credentials = JSON.parse(await readFile(new URL('./.runtime/credentials.json', import.meta.url), 'utf8'));
 const evidence = [];
 
 async function request(url, options = {}) {
-  return fetch(url, { ...options, signal: AbortSignal.timeout(15000), redirect: 'manual' });
+  return fetch(url, { ...options, signal: AbortSignal.timeout(30000), redirect: 'manual' });
 }
 
 async function token(params) {

@@ -134,6 +134,9 @@ authorization server (`auth/keycloak/prepare.mjs`), dan `requireScope(...)`.
 operasi yang sama-sama merupakan capability staf (menerima order dan menugaskan
 driver). Dengan begitu jumlah scope (5) tetap jauh di bawah jumlah operasi (9).
 
+Kelima scope di atas dipakai oleh operasi nyata di `openapi.yaml`; tidak ada
+scope yang dideklarasikan tanpa operasi.
+
 Aktor yang tidak memakai sebuah capability tidak menerima scope-nya: customer
 tidak mendapat `pickups:write`, driver tidak mendapat `orders:fulfil`. Tabel
 pemetaan role lengkap ada di `docs/p4-contract-handoff.md`.

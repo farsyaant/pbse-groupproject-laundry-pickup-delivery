@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Laundry Pickup & Delivery API
-  version: 1.1.0
+  version: 1.2.0
   license:
     name: Academic project
     url: https://opensource.org/licenses/MIT
@@ -240,6 +240,60 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+  /orders/{orderId}/fulfilment:
+    post:
+      tags: [Orders]
+      summary: Claim an order into the caller's outlet
+      operationId: fulfilOrder
+      description: >-
+        Staff-only operation. The service loads the order named by `orderId`
+        and answers with the same `404` used for an unknown order when that
+        order is already bound to another outlet, so identifiers cannot be
+        enumerated. An order not yet bound to any outlet is claimed by the
+        caller's outlet; an order already bound to the caller's own outlet is
+        accepted. The outlet is taken from a claim on the caller's token, never
+        from the request, so a caller cannot choose which outlet it acts for.
+        Ownership is decided before any mutation is stored. The transition is
+        naturally idempotent: repeating it returns the current representation
+        with `200` and does not require an Idempotency-Key.
+      security:
+        - oauth2: [orders:fulfil]
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: Order claimed into the caller's outlet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              example:
+                id: ord_01HZX2Y5K7
+                customerId: cus_01HZX2Y1AB
+                serviceType: wash_fold
+                weightKg: 5.5
+                pickupAddress: Jl. Merdeka No. 10, Jakarta
+                status: processing
+                outletId: outlet_a
+                createdAt: '2026-09-02T10:00:00Z'
+                updatedAt: '2026-09-02T10:05:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
         '502':
