@@ -1,5 +1,29 @@
 # Contract changelog
 
+## 2026-09-23 (v1.2.0)
+
+Perubahan ini **kompatibel** menurut `docs/compatibility.md` (menambah endpoint).
+Alasan: `POST /orders/{orderId}/fulfilment` sudah diimplementasikan dan dipakai
+oleh negative test 3 P4 (scope `orders:fulfil`), tetapi belum pernah dinyatakan
+di kontrak. Selama ini satu operasi protected berjalan tanpa deklarasi
+`security` di `openapi.yaml`, sehingga kontrak tidak lagi menjadi sumber
+kebenaran untuk operasi tersebut.
+
+### Added (compatible)
+
+- `POST /orders/{orderId}/fulfilment` (`fulfilOrder`) dengan scope
+  `orders:fulfil` — operasi khusus staff untuk menerima order ke outlet caller.
+  Endpoint ini sebelumnya hanya ada di kode dan dokumen handoff; kini
+  dideklarasikan di kontrak dengan response `400`, `401`, `403`, `404`, `500`,
+  `502`, `503`, dan `504`.
+- `components.responses.NotFound` pada operasi ini mencakup dua kondisi:
+  order tidak ada, dan order yang sudah terikat outlet lain.
+
+### Clarified
+
+- `orders:fulfil` kini dipakai oleh dua operasi di kontrak (`fulfilOrder`,
+  `createPickup`) dan tidak ada lagi scope yang dideklarasikan tanpa operasi.
+
 ## 2026-09-23 (v1.1.0)
 
 Perubahan ini **kompatibel** menurut `docs/compatibility.md` (menambah endpoint

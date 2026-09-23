@@ -70,7 +70,7 @@ tangan RS256. Nilai token tidak direkam.
 | Order/pickup yang tidak ada | 3 | `404` dengan body **identik** |
 
 Semua di atas diverifikasi otomatis oleh `tests/authz/test-authz.js`
-(36 pemeriksaan, seluruhnya lulus).
+(40 pemeriksaan, seluruhnya lulus).
 
 ---
 
@@ -178,7 +178,7 @@ Dijalankan dari root repository:
 
 ```bash
 node tests/authz/test-authz.js
-# Authz tests passed  (36 pemeriksaan)
+# Authz tests passed  (40 pemeriksaan)
 
 node tests/contract/test-contract.js
 # Total Passed: 28   Total Failed: 0   Result: SUCCESS   (terhadap Prism mock)
@@ -231,14 +231,53 @@ lulus.
 
 ---
 
-## 11. Yang Belum Dikerjakan (bukan bagian Service Owner)
+## 11. Penutupan P4 (revisi)
 
-- **Commit, tag `l4`, dan push** — sesuai instruksi, tidak dilakukan dari sesi
-  ini. Perubahan sengaja ditinggalkan sebagai working tree pada branch
-  `service-owner`.
-- **Bukti refresh-token rotation/reuse** terhadap Keycloak live (Tahap 10) —
-  milik Aya & Tori; statusnya sudah tercatat di
-  `docs/decisions/0003-autentikasi.md` dan
-  `docs/p4-refresh-rotation-verification.txt`.
-- **Deployment ulang ke `pbse.kevinio.my.id`** — perlu `.env` OIDC produksi pada
-  server, di luar cakupan sesi ini.
+Tiga item yang sebelumnya tercatat "belum dikerjakan" sudah diselesaikan:
+
+| Item | Status |
+|---|---|
+| `POST /orders/{orderId}/fulfilment` ada di kode tetapi tidak di kontrak | Selesai: operasi `fulfilOrder` ditambahkan ke `openapi.yaml` (kontrak `1.1.0` → `1.2.0`, kompatibel). |
+| Claim `fixture_domain_id` / `outlet_id` tidak diterbitkan Keycloak | Selesai: client scope `laundry-identity` dengan dua `oidc-usermodel-attribute-mapper`. |
+| Claim `sub` / `realm_access.roles` tidak diterbitkan | Selesai: client scope bawaan `basic` dan `roles` dideklarasikan ulang dan dipasang sebagai default pada kedua public client. |
+| Realm di-deploy ke production | Selesai: `node auth/keycloak/import.mjs https://keycloak-production-68f0.up.railway.app`. |
+| Deployment ulang `pbse.kevinio.my.id` | Selesai: `OIDC_*` diisi domain publik, service di-redeploy. |
+
+### 11.1 Temuan: client scope bawaan hilang
+
+Mendeklarasikan `clientScopes` pada file import realm **menggantikan** himpunan
+client scope bawaan Keycloak, bukan menambahinya. Realm yang diimpor sebelum
+perbaikan tidak memiliki `basic`, sehingga token tidak memuat `sub`;
+`principalFromClaims` melempar `Token is missing subject` dan middleware
+authentication menjawab **`401` untuk setiap token yang sah**.
+
+Gejalanya identik dengan issuer/audience yang salah. Celah ini tidak tertangkap
+`tests/authz/test-authz.js` karena suite tersebut menyuntikkan `fixture_domain_id`
+langsung ke payload dan membuat signing key sendiri — ia menguji logika service,
+bukan konfigurasi provider.
+
+### 11.2 Bukti production
+
+```
+node auth/keycloak/verify-deployment.mjs \
+  https://pbse.kevinio.my.id \
+  https://keycloak-production-68f0.up.railway.app
+```
+
+Hasil: 15 pemeriksaan lulus, termasuk **token asli diterima (`200`)** — bukan
+hanya penolakan tanpa token. Pemeriksaan lain: `403` scope kurang, `403` sebelum
+object di-load, `404` object milik caller lain, body `404` identik, `201` create
+order dengan identitas domain dari claim, dan outlet binding dari token.
+
+Refresh rotation + family revocation juga dibuktikan pada provider production
+(`auth/keycloak/test-refresh-rotation.mjs <origin>`) untuk web dan mobile.
+
+### 11.3 Sisa pekerjaan
+
+- **Commit, tag `l4`, dan push** — belum dilakukan; menunggu persetujuan tim
+  setelah final gate lulus.
+- Provider dan resource server berada pada project Railway berbeda, sehingga
+  `OIDC_JWKS_URI` memakai domain publik. Host `*.railway.internal` tidak resolve
+  antar project.
+- `KC_HOSTNAME` sebaiknya dipin ke origin publik agar claim `iss` tidak
+  bergantung pada Host header request.

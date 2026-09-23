@@ -62,6 +62,79 @@ issuer, JWKS, dan audience di atas jika service berjalan langsung pada host.
 Service di container memerlukan routing provider yang mempertahankan issuer;
 konfigurasi produksi tidak diubah pada tahap ini.
 
+## Deployment Railway
+
+Keycloak dan resource server berjalan sebagai dua service Railway terpisah,
+pada **akun/project yang berbeda**. Karena private networking tidak menembus
+batas project, resource server menjangkau provider melalui domain publik.
+
+| Item | Nilai Railway |
+|---|---|
+| Keycloak origin | `https://keycloak-production-68f0.up.railway.app` |
+| Issuer | `https://keycloak-production-68f0.up.railway.app/realms/laundry` |
+| JWKS | `https://keycloak-production-68f0.up.railway.app/realms/laundry/protocol/openid-connect/certs` |
+| Resource server | `https://pbse.kevinio.my.id` |
+| Audience | `laundry-api` |
+
+### Variabel environment resource server
+
+```env
+OIDC_ISSUER=https://keycloak-production-68f0.up.railway.app/realms/laundry
+OIDC_JWKS_URI=https://keycloak-production-68f0.up.railway.app/realms/laundry/protocol/openid-connect/certs
+OIDC_AUDIENCE=laundry-api
+```
+
+`OIDC_AUDIENCE` **bukan** URL: nilainya adalah nama audience API yang
+didaftarkan pada mapper realm (`included.custom.audience`), dan harus sama persis
+dengan string itu.
+
+`OIDC_ISSUER` harus memakai **domain publik** Keycloak, karena verifier
+membandingkan string ini dengan claim `iss` yang diterbitkan Keycloak dari
+`KC_HOSTNAME`. Jika kedua service berada dalam project Railway yang sama,
+`OIDC_JWKS_URI` boleh memakai private domain
+(`http://<service>.railway.internal:<port>/...`) karena hanya dipanggil oleh
+resource server; issuer tetap wajib publik agar browser/mobile client dapat
+melakukan login. JWKS harus menunjuk realm dan path yang sama.
+
+**Jebakan:** bila kedua service berada pada project/akun berbeda, host
+`*.railway.internal` **tidak akan resolve**. Gejalanya adalah `401` untuk
+**setiap** token, termasuk token yang sah, karena pengambilan JWKS gagal terus
+dan tidak pernah ter-cache. Gunakan domain publik pada kasus itu.
+
+Setelah mengubah variabel, service harus di-restart/redeploy: environment
+variable hanya dibaca saat startup.
+
+### Urutan deploy
+
+Realm diimpor saat startup Keycloak pertama. Deployment Keycloak **tidak** akan
+membuat realm jika file import tidak tersedia pada container, dan resource
+server akan menolak setiap token (401) selama realm belum ada.
+
+1. Pastikan Keycloak hidup: `/realms/master/.well-known/openid-configuration`
+   harus menjawab `200`. Path `/` menampilkan admin console dan tidak membuktikan
+   realm proyek sudah ada.
+2. Verifikasi realm proyek:
+   `/realms/laundry/.well-known/openid-configuration`. Jawaban `404` berarti
+   realm belum diimpor.
+3. Jalankan `node auth/keycloak/import.mjs <keycloak-origin>`. Ini membuat realm
+   bila belum ada, dan memperbaiki client scope (`basic`, `roles`,
+   `laundry-identity`) beserta atribut user bila realm sudah ada.
+4. Setelah realm ada, ambil `issuer` dan `jwks_uri` dari discovery document dan
+   isi kedua variabel di atas pada service resource server, lalu redeploy.
+5. Verifikasi dari luar: `GET https://pbse.kevinio.my.id/v1/orders` tanpa token
+   harus menjawab `401` dengan header `WWW-Authenticate`.
+6. Verifikasi bahwa token asli **diterima**, bukan hanya ditolak:
+   `node auth/keycloak/e2e-proof.mjs` terhadap Keycloak lokal, atau login manual
+   lalu `GET /v1/orders` dengan token tersebut.
+
+Langkah 6 penting: service yang menolak **semua** token (termasuk yang asli) juga
+menjawab `401`, sehingga langkah 5 saja tidak membedakan konfigurasi yang benar
+dari yang rusak.
+
+Jangan menaruh secret Keycloak (`KC_BOOTSTRAP_ADMIN_PASSWORD`, secret scheduled
+job) pada variabel resource server. Resource server tidak pernah menerima
+password dan tidak menerbitkan token.
+
 ## Client
 
 | Client ID | Tipe | Flow | Redirect URI tepat |
@@ -82,8 +155,8 @@ Secret job tetap hanya pada runtime server.
 
 ## Scope dan user
 
-Nama scope mengikuti `openapi.yaml` versi 1.0.0, commit `e9eaf91`:
-`orders:read`, `orders:write`, `pickups:read`, `orders:fulfil`, `pickups:write`.
+Nama scope mengikuti `openapi.yaml`: `orders:read`, `orders:write`,
+`pickups:read`, `orders:fulfil`, `pickups:write`.
 Setiap scope opsional dibatasi role mapping; `fullScopeAllowed=false`. Audience
 mapper selalu memasukkan `laundry-api` pada access token, bukan ID token.
 
@@ -99,9 +172,91 @@ scope yang diminta dan sesuai role. Nama user tetap memakai istilah tugas,
 dengan student=Customer dan courier=Driver. Selain enam user manusia uji, terdapat
 satu service account otomatis untuk scheduled job.
 
-Atribut `fixture_domain_id` hanya penanda fixture, bukan object authorization yang
-sudah aktif. Backend belum menghubungkan `sub` dengan customer/driver/outlet.
-Fixture database dan endpoint mutation pickup/staf tetap pekerjaan tahap terkait.
+### Claim identitas untuk object authorization
+
+Backend memetakan claim provider ke principal internal
+(`service/src/auth/principal.js`). Keycloak **tidak** menerbitkan user attribute
+pada token secara otomatis: setiap atribut memerlukan
+`oidc-usermodel-attribute-mapper` eksplisit.
+
+Tiga client scope wajib ada dan terpasang sebagai `defaultClientScopes` pada
+kedua public client:
+
+| Client scope | Claim yang diterbitkan | Mengapa wajib |
+|---|---|---|
+| `basic` | `sub` | `principal.js` melempar error tanpa `sub`, sehingga **setiap** token asli dijawab `401` |
+| `roles` | `realm_access.roles` | `principal.js` membaca role untuk menentukan `kind` dan fallback outlet staf |
+| `laundry-identity` | `fixture_domain_id`, `outlet_id` | `principal.domainId` dan `principal.outletId` |
+
+**Penting:** `basic` dan `roles` adalah client scope bawaan Keycloak. Mendeklarasikan
+`clientScopes` di file import realm **menggantikan** himpunan bawaan itu, bukan
+menambahinya. Realm yang diimpor tanpa mendeklarasikan ulang keduanya akan
+kehilangan claim `sub` dan `realm_access`, dan service akan menolak semua token
+dengan `401` — gejala yang mudah salah didiagnosis sebagai masalah issuer/audience.
+
+Ketiganya memakai `include.in.token.scope: false`, sehingga mappers tetap berjalan
+tetapi nama scope-nya tidak muncul pada claim `scope`. Claim `scope` hanya boleh
+berisi capability scope (`orders:read`, `pickups:write`, dst).
+
+`fixture_domain_id` dan `outlet_id` disimpan sebagai user attribute
+(`auth/keycloak/prepare.mjs`), dengan `outlet_id` hanya ada pada staf.
+
+Tanpa ketiga scope ini, `principal.js` jatuh ke fallback `sub` atau gagal total,
+sehingga aturan kepemilikan membandingkan username terhadap identifier domain dan
+setiap object dijawab `404`.
+
+`customerId` pada body atau URL tidak pernah diperlakukan sebagai bukti
+kepemilikan; identitas domain hanya berasal dari claim provider.
+
+### Memperbaiki realm yang sudah ter-import
+
+Keycloak melewati `--import-realm` bila realm sudah ada. Realm yang dibuat sebelum
+client scope di atas ditambahkan harus diperbaiki melalui admin API:
+
+```bash
+node auth/keycloak/import.mjs http://localhost:8081
+node auth/keycloak/import.mjs https://keycloak-production-68f0.up.railway.app
+```
+
+Script ini idempotent: ia membuat client scope yang hilang, merekonsiliasi
+protocol mapper, memasang scope pada kedua public client, dan memastikan atribut
+user. Aman dijalankan berulang kali. Tidak ada secret atau token yang dicetak.
+
+### Bukti end-to-end dengan provider asli
+
+Test suite utama (`tests/authz/test-authz.js`) memakai signing key khusus test dan
+menyuntikkan `fixture_domain_id` langsung ke payload, sehingga **tetap lulus**
+meskipun provider tidak pernah menerbitkan claim tersebut. Untuk menutup celah
+itu, bukti end-to-end dijalankan terhadap Keycloak yang benar-benar berjalan:
+
+```bash
+# provider + service lokal
+node auth/keycloak/e2e-proof.mjs
+
+# provider + service yang sudah di-deploy
+node auth/keycloak/verify-deployment.mjs \
+  https://pbse.kevinio.my.id \
+  https://keycloak-production-68f0.up.railway.app
+```
+
+`verify-deployment.mjs` login melalui Authorization Code + PKCE, lalu menguji
+deployment dengan token asli:
+
+| Pemeriksaan | Hasil |
+|---|---|
+| Token memuat `sub`, `realm_access.roles`, `fixture_domain_id`, `outlet_id`, `aud` | Lulus |
+| Tanpa token | `401` |
+| **Token asli diterima** | **`200`** |
+| Scope kurang (student pada operasi staf) | `403` |
+| Scope ditolak sebelum object di-load (ID tidak ada pun `403`) | Lulus |
+| Object milik caller lain | `404` |
+| Body `404` absent vs not-owned identik | Lulus |
+| `createOrder` dengan identitas domain dari claim | `201` |
+| Outlet binding diambil dari token, bukan request | `outlet_a` |
+
+Pemeriksaan "token asli diterima" adalah yang menentukan: service yang menolak
+**semua** token juga menjawab `401`, sehingga "tanpa token -> 401" saja tidak
+membuktikan konfigurasi benar.
 
 ## Verifikasi
 

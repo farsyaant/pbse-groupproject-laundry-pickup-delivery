@@ -80,9 +80,15 @@ async function main() {
     'Scheduled job: signed audience-bound read token, no write scope or refresh token');
 
   // Local fixture login through Authorization Code + PKCE; never enable password grant.
-  for (const [client, username, scope, callback] of [
-    ['laundry-web', 'student-a', 'orders:read orders:fulfil', 'http://localhost:5173/callback'],
-    ['laundry-mobile', 'student-a', 'orders:read orders:write pickups:write', 'id.ac.ugm.laundry://oauth/callback'],
+  for (const [client, username, scope, callback, expected] of [
+    ['laundry-web', 'student-a', 'orders:read orders:fulfil', 'http://localhost:5173/callback',
+      { actor: 'customer', fixture_domain_id: 'cus_studentA', outlet_id: undefined }],
+    ['laundry-mobile', 'student-a', 'orders:read orders:write pickups:write', 'id.ac.ugm.laundry://oauth/callback',
+      { actor: 'customer', fixture_domain_id: 'cus_studentA', outlet_id: undefined }],
+    // Staff must carry the outlet binding in the token, or every outlet-scoped
+    // ownership rule would compare a username against an outlet identifier.
+    ['laundry-web', 'staff-outlet-a', 'orders:read orders:fulfil', 'http://localhost:5173/callback',
+      { actor: 'staff', fixture_domain_id: 'outlet_a', outlet_id: 'outlet_a' }],
   ]) {
     const verifier = randomBytes(32).toString('base64url');
     const state = randomBytes(16).toString('hex');
@@ -111,9 +117,41 @@ async function main() {
     const exchanged = await token('laundry', { grant_type: 'authorization_code', client_id: client,
       redirect_uri: callback, code, code_verifier: verifier });
     assert.equal(exchanged.response.status, 200, 'PKCE code exchange succeeds');
-    const granted = claims(exchanged.data.access_token).scope.split(' ');
-    check(granted.includes('orders:read') && (client === 'laundry-web' ? !granted.includes('orders:fulfil') : !granted.includes('pickups:write')), `${client}: unauthorized requested scope not granted`);
-    check(Boolean(exchanged.data.refresh_token), `${client}: PKCE login issues refresh token`);
+    const grantedClaims = claims(exchanged.data.access_token);
+    const granted = grantedClaims.scope.split(' ');
+
+    // The identity claims the resource server maps into its internal
+    // principal. These must come from the token, never from the request.
+    //
+    // `sub` is checked first and deliberately: without the built-in `basic`
+    // client scope there is no `sub`, `principal.js` throws, and every real
+    // token is refused with 401 regardless of the other claims.
+    check(typeof grantedClaims.sub === 'string' && grantedClaims.sub.length > 0,
+      `${client}/${username}: token carries a sub claim`);
+    check(Array.isArray(grantedClaims.realm_access?.roles),
+      `${client}/${username}: token carries realm_access.roles`);
+    check(grantedClaims.realm_access.roles.includes(expected.actor),
+      `${client}/${username}: realm_access.roles includes '${expected.actor}'`);
+    check(grantedClaims.fixture_domain_id === expected.fixture_domain_id,
+      `${client}/${username}: fixture_domain_id claim is ${expected.fixture_domain_id}`);
+    if (expected.outlet_id) {
+      check(grantedClaims.outlet_id === expected.outlet_id,
+        `${client}/${username}: outlet_id claim is ${expected.outlet_id}`);
+    } else {
+      check(grantedClaims.outlet_id === undefined,
+        `${client}/${username}: no outlet_id claim for a non-staff principal`);
+    }
+    check(!granted.includes('laundry-identity'),
+      `${client}/${username}: identity scope is not exposed as a capability scope`);
+
+    // Scope is granted from the user's role, not from what the client asked for.
+    // `student-a` must not receive `orders:fulfil`; `staff-outlet-a` must not
+    // receive `orders:write`.
+    const mustNotHave = username.startsWith('staff') ? 'orders:write' : 'orders:fulfil';
+    check(granted.includes('orders:read') && !granted.includes(mustNotHave),
+      `${client}/${username}: requested scope outside the role is not granted`);
+
+    check(Boolean(exchanged.data.refresh_token), `${client}/${username}: PKCE login issues refresh token`);
     for (const method of ['missing', 'plain']) {
       const invalid = new URLSearchParams(params);
       if (method === 'missing') { invalid.delete('code_challenge'); invalid.delete('code_challenge_method'); }

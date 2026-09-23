@@ -242,6 +242,30 @@ Klaim provider yang dipakai:
 `customerId` dari body atau URL **tidak pernah** diperlakukan sebagai bukti
 kepemilikan.
 
+Dua claim pertama memerlukan konfigurasi provider eksplisit: Keycloak tidak
+menerbitkan user attribute pada token tanpa `oidc-usermodel-attribute-mapper`.
+Tiga client scope wajib terpasang sebagai default pada public client
+(`auth/keycloak/prepare.mjs`):
+
+| Client scope | Claim | Peran |
+|---|---|---|
+| `basic` | `sub` | tanpa ini `principal.js` melempar error dan **semua** token asli dijawab `401` |
+| `roles` | `realm_access.roles` | `kind` caller dan fallback outlet staf |
+| `laundry-identity` | `fixture_domain_id`, `outlet_id` | `domainId` dan `outletId` |
+
+`basic` dan `roles` adalah client scope bawaan Keycloak yang **hilang** bila
+`clientScopes` dideklarasikan di file import realm, karena deklarasi itu
+menggantikan himpunan bawaan alih-alih menambahinya. Ketiganya memakai
+`include.in.token.scope=false` agar nama scope tidak muncul pada claim `scope`,
+yang hanya boleh berisi capability scope.
+
+Tanpa ketiga scope ini, `principal.js` gagal atau jatuh ke fallback `sub`,
+sehingga aturan kepemilikan membandingkan username terhadap identifier domain
+dan setiap object dijawab `404` (atau setiap token dijawab `401`).
+`auth/keycloak/verify.mjs` meng-assert `sub`, `realm_access.roles`, dan kedua
+claim identitas pada token hasil login PKCE. Realm yang sudah ter-import
+diperbaiki dengan `node auth/keycloak/import.mjs <origin>`.
+
 ### 8.2 Relasi outlet
 
 `orders.outlet_id` (nullable) ditambahkan lewat migrasi in-place, sehingga
@@ -297,7 +321,7 @@ Fixture 6 principal dengan relasi object eksplisit:
 
 | Klaim | Bukti |
 |---|---|
-| Empat negative test lulus, masing-masing boundary berbeda | `node tests/authz/test-authz.js` → `Authz tests passed` (36 pemeriksaan) |
+| Empat negative test lulus, masing-masing boundary berbeda | `node tests/authz/test-authz.js` → `Authz tests passed` (40 pemeriksaan) |
 | Test benar-benar menguji pemeriksaannya | `node tests/authz/verify-checks-are-live.js` → keempat boundary MERAH saat pemeriksaannya dinetralkan |
 | `401` tanpa token / token diubah / expired / issuer-audience salah | `tests/authz/test-authz.js` |
 | Absent vs not-owned identik (status + body) | pemeriksaan `deepEqual` body pada test 1, 2, dan 4 |
@@ -319,6 +343,69 @@ Rincian perintah dan keluaran ada di `service/EVIDENCE.md`.
   kontrak naik ke `1.1.0` (perubahan kompatibel), dan contract test P3 kini
   menyuplai token melalui runner tanpa mengubah kontrak.
 - Bukti refresh rotation (§7) tetap berlaku dan tidak berubah oleh pekerjaan ini.
+
+### 8.8 Penutupan gap kontrak dan claim provider
+
+Tiga gap yang tersisa setelah §8.6 ditutup:
+
+| Gap | Penyelesaian |
+|---|---|
+| `POST /orders/{orderId}/fulfilment` sudah diimplementasikan dan dipakai negative test 3, tetapi belum dinyatakan di `openapi.yaml` | Operasi `fulfilOrder` ditambahkan ke kontrak dengan scope `orders:fulfil` dan response `400/401/403/404/500/502/503/504`. Versi kontrak naik `1.1.0` → `1.2.0` (perubahan kompatibel). Tidak ada lagi operasi protected yang berjalan tanpa deklarasi `security`. |
+| `principal.js` bergantung pada claim `fixture_domain_id` dan `outlet_id`, tetapi Keycloak tidak menerbitkan user attribute pada token tanpa mapper | Client scope `laundry-identity` ditambahkan pada `auth/keycloak/prepare.mjs` dengan dua `oidc-usermodel-attribute-mapper`, masuk `defaultClientScopes` kedua public client. `auth/keycloak/verify.mjs` meng-assert nilai kedua claim pada token hasil login PKCE. |
+| Claim `sub` dan `realm_access` tidak pernah diterbitkan, sehingga setiap token asli ditolak `401` | Client scope bawaan `basic` (`oidc-sub-mapper`) dan `roles` (`oidc-usermodel-realm-role-mapper`, `oidc-usermodel-client-role-mapper`) dideklarasikan ulang dan dipasang sebagai default pada kedua public client. |
+
+**Temuan paling penting — client scope bawaan hilang.** Mendeklarasikan
+`clientScopes` di file import realm **menggantikan** himpunan client scope bawaan
+Keycloak (`basic`, `roles`, `profile`, `email`, ...), bukan menambahinya. Realm
+yang diimpor dari `prepare.mjs` sebelum perbaikan ini tidak memiliki `basic`,
+sehingga token tidak memuat `sub`; `principalFromClaims` melempar
+`Token is missing subject`, dan middleware authentication menjawab **`401` untuk
+setiap token yang sah**. Gejalanya identik dengan issuer/audience yang salah,
+sehingga mudah salah didiagnosis.
+
+Celah ini tidak tertangkap oleh `tests/authz/test-authz.js`, karena suite itu
+membuat signing key sendiri dan menyuntikkan `fixture_domain_id` langsung ke
+payload — ia menguji logika service, bukan konfigurasi provider. Karena itu
+`auth/keycloak/e2e-proof.mjs` dan `auth/keycloak/verify-deployment.mjs`
+ditambahkan: keduanya login melalui Authorization Code + PKCE ke Keycloak yang
+benar-benar berjalan dan memakai token asli untuk membuktikan Layer 1/2/3
+(`401` tanpa token, `403` scope kurang, `404` object milik caller lain, `201`
+create order dengan identitas domain dari claim).
+
+Konsekuensi yang perlu dicatat: realm yang sudah ter-import **tidak** otomatis
+diperbaiki, karena Keycloak melewati import bila realm sudah ada. Perbaikan
+dilakukan dengan `node auth/keycloak/import.mjs <origin>`, yang idempotent:
+membuat client scope yang hilang, merekonsiliasi mapper, memasang scope pada
+kedua public client, dan memastikan atribut user.
+
+### 8.9 Status production
+
+Realm `laundry` sudah dibuat pada Keycloak yang di-deploy
+(`https://keycloak-production-68f0.up.railway.app`) melalui `import.mjs`, dan
+`verify-deployment.mjs` membuktikan resource server
+(`https://pbse.kevinio.my.id`) menerima token asli:
+
+| Pemeriksaan | Hasil |
+|---|---|
+| Token memuat `sub`, `realm_access.roles`, `fixture_domain_id`, `outlet_id`, `aud` | Lulus |
+| Tanpa token | `401` |
+| Token asli diterima | `200` |
+| Scope kurang | `403` |
+| Scope ditolak sebelum object di-load | `403` |
+| Object milik caller lain | `404` |
+| Body `404` absent vs not-owned identik | Lulus |
+| `createOrder` dengan identitas domain dari claim | `201` |
+| Outlet binding dari token | `outlet_a` |
+| Refresh rotation + family revocation (web & mobile) | Lulus |
+
+Provider dan resource server berada pada project Railway yang berbeda, sehingga
+`OIDC_JWKS_URI` memakai domain publik. Host `*.railway.internal` tidak resolve
+antar project, dan gejalanya adalah `401` untuk setiap token termasuk yang sah.
+
+Catatan operasional: `KC_HOSTNAME` sebaiknya dipin ke origin publik agar claim
+`iss` tidak bergantung pada Host header request. Selama `KC_HOSTNAME` kosong dan
+`KC_HOSTNAME_STRICT=false`, issuer mengikuti host yang dipakai client, sehingga
+akses lewat host lain menghasilkan `iss` berbeda dan token langsung ditolak.
 
 Referensi lokal: [taksonomi client](../client-taxonomy.md),
 [domain](../domain.md), [ADR P3](0002-implementasi.md),
