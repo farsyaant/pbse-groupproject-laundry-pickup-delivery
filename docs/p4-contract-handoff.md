@@ -105,3 +105,91 @@
 3. **CI Integration**:
    - Pastikan CI menjalankan `npm run test:contract` dan `npm run test:authz`.
    - Pastikan contract test P3 disuplai dengan token uji yang valid sehingga tetap lulus tanpa mengubah kontrak.
+
+---
+
+## 7. Addendum Implementasi (23 September 2026)
+
+Ditulis oleh Service Owner setelah implementasi selesai, untuk menutup tiga hal
+yang belum ada saat handoff: dua scope "hantu" (`orders:fulfil`, `pickups:write`)
+belum dipakai operasi mana pun, belum ada operasi khusus staf, dan belum ada
+mutasi pickup. Ketiganya dibutuhkan oleh empat negative test Step 11.
+
+### 7.1 Operasi yang ditambahkan (kontrak `1.1.0`, kompatibel)
+
+| Method | Path | Operation ID | Scope | Actor | Padanan contoh materi |
+|---|---|---|---|---|---|
+| `POST` | `/orders/{orderId}/fulfilment` | `fulfilOrder` | `orders:fulfil` | Staff | `POST /v1/orders/{orderId}/accept` |
+| `POST` | `/pickups` | `createPickup` | `orders:fulfil` | Staff | — |
+| `POST` | `/pickups/{pickupId}/collect` | `collectPickup` | `pickups:write` | Driver | `PATCH /v1/deliveries/{id}/collect` |
+
+Klasifikasi perubahan menurut `docs/compatibility.md`: **compatible** (menambah
+endpoint, menambah response field opsional `Order.outletId`, menambah header
+`WWW-Authenticate` pada `403`). Bukan breaking change, sehingga versi naik
+minor: `1.0.0` → `1.1.0`.
+
+**Catatan untuk Contract Owner:** domain kelompok ini memakai resource **Pickup**
+(lihat schema `Pickup` yang sudah ada sejak P3), bukan Delivery seperti pada
+contoh materi. Karena itu operasi `collect` memakai resource Pickup. Scope
+`pickups:write` yang sudah dideklarasikan pada `securitySchemes` kini benar-benar
+dipakai, sehingga vocabulary scope tidak lagi memuat scope tanpa operasi.
+
+### 7.2 Scope → operasi final (tidak ada scope hantu)
+
+| Scope | Operasi |
+|---|---|
+| `orders:read` | `listOrders`, `getOrder` |
+| `orders:write` | `createOrder`, `cancelOrder` |
+| `pickups:read` | `listPickups` |
+| `orders:fulfil` | `fulfilOrder`, `createPickup` |
+| `pickups:write` | `collectPickup` |
+
+Jumlah scope (5) tetap di bawah jumlah operasi protected (9). `orders:fulfil`
+dipakai oleh dua operasi karena keduanya merupakan satu capability staf
+("menerima pekerjaan order ke outlet"), bukan satu scope per endpoint.
+
+### 7.3 Status code yang diimplementasikan
+
+| Kondisi | Status | Layer |
+|---|---|---|
+| Token hilang / invalid / expired / issuer-audience salah | `401` | 1 |
+| Token valid, scope kurang (mis. student pada `fulfilment`) | `403` | 2 |
+| Objek tidak ada | `404` | 3 |
+| Objek ada tetapi bukan milik caller | `404` (body identik) | 3 |
+| `customerId` pada `createOrder` bukan identitas domain caller | `404` (body identik) | 3 |
+
+`403` **tidak pernah** dipakai untuk object ownership, hanya untuk scope.
+Sebaliknya, kegagalan ownership pada `createOrder` juga dijawab `404` agar tidak
+membocorkan keberadaan identitas customer.
+
+### 7.4 Aturan kepemilikan objek yang diimplementasikan
+
+| Route | Aturan |
+|---|---|
+| `GET /orders` | customer: `WHERE customer_id = principal.domainId`; staff: `WHERE outlet_id = principal.outletId` |
+| `GET /orders/{orderId}` | customer pemilik, atau staff outlet pemegang order, atau driver yang ditugaskan pada pickup order tersebut |
+| `POST /orders` | hanya untuk `principal.domainId` sendiri |
+| `POST /orders/{orderId}/cancellation` | hanya customer pemilik; status diperiksa setelah ownership |
+| `POST /orders/{orderId}/fulfilment` | staff; order belum terikat outlet, atau terikat outletnya sendiri |
+| `POST /pickups` | staff; aturan order sama seperti `fulfilment` |
+| `POST /pickups/{pickupId}/collect` | hanya `pickup.driver_id` |
+| `GET /pickups` | driver: `WHERE driver_id`; staff: pickup dari order di outletnya |
+
+`outletId` dan `domainId` berasal dari claim provider, bukan dari request.
+
+### 7.5 Bukti
+
+Seluruh klaim di atas diverifikasi otomatis. Lihat `service/EVIDENCE.md` §9 untuk
+daftar perintah dan hasilnya, serta `tests/authz/verify-checks-are-live.js` untuk
+bukti bahwa keempat boundary benar-benar diuji (suite MERAH saat pemeriksaannya
+dinetralkan).
+
+Contract test P3 tetap lulus terhadap service terautentikasi (33/33) tanpa
+mengubah kontrak; runner `tests/contract/run-against-service.js` yang menyuplai
+bearer token, sesuai instruksi Step 12b.
+
+### 7.6 Yang belum dikerjakan
+
+Commit, tag `l4`, dan push sengaja tidak dilakukan (instruksi kerja sesi ini).
+Perubahan ditinggalkan sebagai working tree pada branch `service-owner` untuk
+direview Contract Owner dan Integration Owner.

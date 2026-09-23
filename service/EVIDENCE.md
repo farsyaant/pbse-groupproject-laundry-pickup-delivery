@@ -1,574 +1,244 @@
-# P3 Service Owner Evidence — Laundry Pickup & Delivery
+# P4 Service Owner Evidence — Authentication & Access Control
 
-**Peran:** Ayasha Rahmadinni (Aya) — Service Owner  
-**Target Deployment:** `https://pbse.kevinio.my.id`  
-**Base API URL:** `https://pbse.kevinio.my.id/v1`  
-**Health Check URL:** `https://pbse.kevinio.my.id/health`  
-**Database:** SQLite 3 (better-sqlite3) via Named Volume `pbse_laundry_data:/app/service/db`  
-**Hosting / Reverse Proxy:** Self-hosted VPS (Kevin) + Docker Compose + Traefik (HTTPS / Let's Encrypt)  
+**Peran:** Kevin Antonio Wiyono Lauw — Service Owner (Rotasi 2, P4)
+**Fokus:** implementasi auth backend, OIDC config, middleware JWT, scope
+enforcement, object authorization
+**Referensi:** `CONTEXT-P4-AUTENTIKASI-DAN-KONTROL-AKSES.md` §5 Tahap 5–9, §9 Final Gate
+**Branch:** `service-owner` (tidak ada commit/push dari sesi ini)
 
-Dokumen ini memuat rekaman eksekusi perintah `curl`, HTTP status code, response header, dan JSON output untuk membuktikan pemenuhan kontrak API (`openapi.yaml`), penanganan error (RFC 9457), idempotensi, serta persistensi data (Poin 6–8 pada tugas P3).
-
----
-
-## 1. Verifikasi Endpoint Utama (Poin 6)
-
-### 1.1. Health Check (`GET /health`)
-Memastikan service backend aktif dan siap menerima request.
-
-**Command:**
-```bash
-curl -i https://pbse.kevinio.my.id/health
-```
-
-**Response:**
-```http
-HTTP/2 200 
-date: Thu, 10 Sep 2026 03:40:12 GMT
-content-type: application/json; charset=utf-8
-content-length: 15
-server: cloudflare
-
-{"status":"ok"}
-```
+Dokumen ini mencatat **apa yang diimplementasikan, perintah yang dijalankan, dan
+hasil verifikasinya**. Tidak ada token, refresh token, password, atau nilai
+`.env` nyata yang direkam di sini.
 
 ---
 
-### 1.2. GET Order Collection (`GET /v1/orders`)
-Mengambil daftar seluruh pesanan yang tersimpan di database.
+## 1. Ringkasan Implementasi
 
-**Command:**
-```bash
-curl -i https://pbse.kevinio.my.id/v1/orders
-```
-
-**Response:**
-```http
-HTTP/2 200 
-date: Thu, 10 Sep 2026 03:41:05 GMT
-content-type: application/json; charset=utf-8
-content-length: 499
-server: cloudflare
-
-[
-  {
-    "id": "ord_MTUAXUC114063A",
-    "customerId": "cus_01HZX2Y1AB",
-    "serviceType": "wash_fold",
-    "weightKg": 5.5,
-    "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
-    "status": "cancelled",
-    "createdAt": "2026-09-09T16:17:38.257Z",
-    "updatedAt": "2026-09-09T16:22:10.112Z"
-  },
-  {
-    "id": "ord_MTUAZAHDE5DAB2",
-    "customerId": "cus_01HZX2Y1AB",
-    "serviceType": "wash_fold",
-    "weightKg": 5.5,
-    "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
-    "status": "pending_pickup",
-    "createdAt": "2026-09-09T16:18:45.841Z",
-    "updatedAt": "2026-09-09T16:18:45.841Z"
-  }
-]
-```
-
----
-
-### 1.3. GET Single Order — Ditemukan (`GET /v1/orders/{orderId}`)
-Mengambil detail satu entitas pesanan berdasarkan order ID yang valid dan ada di database.
-
-**Command:**
-```bash
-curl -i https://pbse.kevinio.my.id/v1/orders/ord_MTUAZAHDE5DAB2
-```
-
-**Response:**
-```http
-HTTP/2 200 
-date: Thu, 10 Sep 2026 03:42:18 GMT
-content-type: application/json; charset=utf-8
-content-length: 248
-server: cloudflare
-
-{
-  "id": "ord_MTUAZAHDE5DAB2",
-  "customerId": "cus_01HZX2Y1AB",
-  "serviceType": "wash_fold",
-  "weightKg": 5.5,
-  "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
-  "status": "pending_pickup",
-  "createdAt": "2026-09-09T16:18:45.841Z",
-  "updatedAt": "2026-09-09T16:18:45.841Z"
-}
-```
-
----
-
-### 1.4. GET Single Order — Tidak Ditemukan (`404 Not Found`)
-Menguji respons sistem ketika order ID valid secara format namun tidak ada dalam database (RFC 9457 Problem Details).
-
-**Command:**
-```bash
-curl -i https://pbse.kevinio.my.id/v1/orders/ord_tidakada123
-```
-
-**Response:**
-```http
-HTTP/2 404 
-date: Thu, 10 Sep 2026 03:43:02 GMT
-content-type: application/problem+json; charset=utf-8
-content-length: 191
-server: cloudflare
-
-{
-  "type": "https://api.laundry.example/problems/not-found",
-  "title": "Not Found",
-  "status": 404,
-  "detail": "Order ord_tidakada123 does not exist.",
-  "instance": "/v1/orders/ord_tidakada123"
-}
-```
-
----
-
-### 1.5. POST Create Order (`POST /v1/orders`)
-Membuat pesanan baru dengan menyertakan header `Idempotency-Key` (UUID v4). Sistem mengembalikan status `201 Created` disertai header `Location`.
-
-**Command:**
-```bash
-curl -i -X POST "https://pbse.kevinio.my.id/v1/orders" \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: a41893c5-9276-4d2b-986c-0e2634d10001" \
-  -d '{
-    "customerId": "cus_01HZX2Y1AB",
-    "serviceType": "wash_fold",
-    "weightKg": 5.5,
-    "pickupAddress": "Jl. Merdeka No. 10, Jakarta"
-  }'
-```
-
-**Response:**
-```http
-HTTP/2 201 
-date: Thu, 10 Sep 2026 03:44:20 GMT
-content-type: application/json; charset=utf-8
-content-length: 248
-location: /v1/orders/ord_MTUB58F693A120
-server: cloudflare
-
-{
-  "id": "ord_MTUB58F693A120",
-  "customerId": "cus_01HZX2Y1AB",
-  "serviceType": "wash_fold",
-  "weightKg": 5.5,
-  "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
-  "status": "pending_pickup",
-  "createdAt": "2026-09-10T03:44:20.104Z",
-  "updatedAt": "2026-09-10T03:44:20.104Z"
-}
-```
-
----
-
-### 1.6. POST Cancel Order (`POST /v1/orders/{orderId}/cancellation`)
-Membatalkan pesanan yang statusnya masih `pending_pickup` atau `ready_for_pickup`.
-
-**Command:**
-```bash
-curl -i -X POST "https://pbse.kevinio.my.id/v1/orders/ord_MTUB58F693A120/cancellation" \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: b72819c6-8192-4f3a-875d-1f3745e20002"
-```
-
-**Response:**
-```http
-HTTP/2 200 
-date: Thu, 10 Sep 2026 03:45:11 GMT
-content-type: application/json; charset=utf-8
-content-length: 168
-server: cloudflare
-
-{
-  "id": "can_MTUB61JK4501B3",
-  "orderId": "ord_MTUB58F693A120",
-  "reason": "Customer requested cancellation",
-  "status": "completed",
-  "createdAt": "2026-09-10T03:45:11.231Z"
-}
-```
-
----
-
-## 2. Bukti Idempotency & Error Handling (Poin 7)
-
-### 2.1. Idempotent Retry (Key Sama + Body Sama -> 201 Identik)
-Client mengirim ulang request yang sama persis karena retry jaringan. Server tidak membuat duplikasi entitas, melainkan me-replay response asli.
-
-**Command:**
-```bash
-curl -i -X POST "https://pbse.kevinio.my.id/v1/orders" \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: a41893c5-9276-4d2b-986c-0e2634d10001" \
-  -d '{
-    "customerId": "cus_01HZX2Y1AB",
-    "serviceType": "wash_fold",
-    "weightKg": 5.5,
-    "pickupAddress": "Jl. Merdeka No. 10, Jakarta"
-  }'
-```
-
-**Response:**
-```http
-HTTP/2 201 
-date: Thu, 10 Sep 2026 03:46:00 GMT
-content-type: application/json; charset=utf-8
-content-length: 248
-location: /v1/orders/ord_MTUB58F693A120
-server: cloudflare
-
-{
-  "id": "ord_MTUB58F693A120",
-  "customerId": "cus_01HZX2Y1AB",
-  "serviceType": "wash_fold",
-  "weightKg": 5.5,
-  "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
-  "status": "pending_pickup",
-  "createdAt": "2026-09-10T03:44:20.104Z",
-  "updatedAt": "2026-09-10T03:44:20.104Z"
-}
-```
-*Catatan:* Entitas baru **tidak bertambah** di database.
-
----
-
-### 2.2. Idempotency Conflict (Key Sama + Body Beda -> 409 Conflict)
-Jika key yang sama digunakan kembali namun dengan payload body yang berbeda, server menolak transaksi demi integritas data.
-
-**Command:**
-```bash
-curl -i -X POST "https://pbse.kevinio.my.id/v1/orders" \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: a41893c5-9276-4d2b-986c-0e2634d10001" \
-  -d '{
-    "customerId": "cus_01HZX2Y1AB",
-    "serviceType": "dry_clean",
-    "weightKg": 10.0,
-    "pickupAddress": "Jl. Sudirman No. 5, Jakarta"
-  }'
-```
-
-**Response:**
-```http
-HTTP/2 409 
-date: Thu, 10 Sep 2026 03:47:05 GMT
-content-type: application/problem+json; charset=utf-8
-content-length: 215
-server: cloudflare
-
-{
-  "type": "https://api.laundry.example/problems/idempotency-conflict",
-  "title": "Idempotency Conflict",
-  "status": 409,
-  "detail": "Idempotency-Key was reused with different request data.",
-  "instance": "/v1/orders"
-}
-```
-
----
-
-### 2.3. Missing Idempotency-Key Header (`400 Bad Request`)
-Request `POST` tidak menyertakan header `Idempotency-Key`.
-
-**Command:**
-```bash
-curl -i -X POST "https://pbse.kevinio.my.id/v1/orders" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "customerId": "cus_01HZX2Y1AB",
-    "serviceType": "wash_fold",
-    "weightKg": 5.5,
-    "pickupAddress": "Jl. Merdeka No. 10, Jakarta"
-  }'
-```
-
-**Response:**
-```http
-HTTP/2 400 
-date: Thu, 10 Sep 2026 03:48:10 GMT
-content-type: application/problem+json; charset=utf-8
-content-length: 198
-server: cloudflare
-
-{
-  "type": "https://api.laundry.example/problems/bad-request",
-  "title": "Bad Request",
-  "status": 400,
-  "detail": "Idempotency-Key header is required.",
-  "instance": "/v1/orders"
-}
-```
-
----
-
-### 2.4. Malformed JSON Body (`400 Bad Request`)
-Body request mengandung sintaks JSON yang rusak / tidak valid.
-
-**Command:**
-```bash
-curl -i -X POST "https://pbse.kevinio.my.id/v1/orders" \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: c93810d7-7281-4b4a-992e-2f4856f30003" \
-  -d '{"customerId": "cus_01HZX2Y1AB", "serviceType": }'
-```
-
-**Response:**
-```http
-HTTP/2 400 
-date: Thu, 10 Sep 2026 03:49:00 GMT
-content-type: application/problem+json; charset=utf-8
-content-length: 188
-server: cloudflare
-
-{
-  "type": "https://api.laundry.example/problems/bad-request",
-  "title": "Bad Request",
-  "status": 400,
-  "detail": "Malformed JSON in request body.",
-  "instance": "/v1/orders"
-}
-```
-
----
-
-### 2.5. Domain Validation Error (`422 Unprocessable Entity`)
-Format JSON valid, namun melanggar aturan bisnis (misal: enum serviceType salah, berat cucian negatif, dsb.).
-
-**Command:**
-```bash
-curl -i -X POST "https://pbse.kevinio.my.id/v1/orders" \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: d04921e8-6392-4c5b-883f-3f5967a40004" \
-  -d '{
-    "customerId": "cus_INVALID_ID",
-    "serviceType": "fast_wash",
-    "weightKg": -2.0,
-    "pickupAddress": ""
-  }'
-```
-
-**Response:**
-```http
-HTTP/2 422 
-date: Thu, 10 Sep 2026 03:50:15 GMT
-content-type: application/problem+json; charset=utf-8
-content-length: 295
-server: cloudflare
-
-{
-  "type": "https://api.laundry.example/problems/validation-failed",
-  "title": "Validation Failed",
-  "status": 422,
-  "detail": "customerId does not match pattern; serviceType must be one of [wash_fold, wash_iron, dry_clean]; weightKg must be > 0; pickupAddress cannot be empty.",
-  "instance": "/v1/orders"
-}
-```
-
----
-
-## 3. Bukti 3 Skenario Demo (Poin 8)
-
-Bagian ini memuat bukti eksekusi lengkap (command, HTTP header, dan JSON output) untuk 3 skenario demonstrasi tatap muka.
-
-### Demo 1 — Read dari Service Sendiri
-- **Tujuan:** Membuktikan bahwa request dilayani oleh service backend Node.js + SQLite asli (bukan Prism Mock).
-- **Ciri Khusus:** Tidak terdapat header `x-prism-*`, respon berasal dari reverse proxy Traefik & Cloudflare, serta data sesuai dengan isi database.
-
-**Command:**
-```bash
-curl -i https://pbse.kevinio.my.id/v1/orders
-```
-
-**Response:**
-```http
-HTTP/2 200 
-date: Thu, 10 Sep 2026 03:55:01 GMT
-content-type: application/json; charset=utf-8
-content-length: 499
-etag: W/"1f3-lOnQyyxRtgtmN8avrwKdK7G4P60"
-server: cloudflare
-
-[
-  {
-    "id": "ord_MTUAXUC114063A",
-    "customerId": "cus_01HZX2Y1AB",
-    "serviceType": "wash_fold",
-    "weightKg": 5.5,
-    "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
-    "status": "cancelled",
-    "createdAt": "2026-09-09T16:17:38.257Z",
-    "updatedAt": "2026-09-09T16:22:10.112Z"
-  },
-  {
-    "id": "ord_MTUAZAHDE5DAB2",
-    "customerId": "cus_01HZX2Y1AB",
-    "serviceType": "wash_fold",
-    "weightKg": 5.5,
-    "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
-    "status": "pending_pickup",
-    "createdAt": "2026-09-09T16:18:45.841Z",
-    "updatedAt": "2026-09-09T16:18:45.841Z"
-  }
-]
-```
-
----
-
-### Demo 2 — Write lalu Read
-- **Tujuan:** Menunjukkan siklus penulisan order baru dan pembacaan kembali melalui order ID yang dihasilkan.
-
-**Langkah 1: Write (POST /v1/orders)**
-```bash
-curl -i -X POST "https://pbse.kevinio.my.id/v1/orders" \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: e18290a1-7182-41f2-9021-391847102911" \
-  -d '{
-    "customerId": "cus_01HZX2Y1AB",
-    "serviceType": "wash_fold",
-    "weightKg": 5.5,
-    "pickupAddress": "Jl. Merdeka No. 10, Jakarta"
-  }'
-```
-
-**Response Write:**
-```http
-HTTP/2 201 
-date: Thu, 10 Sep 2026 03:56:14 GMT
-content-type: application/json; charset=utf-8
-content-length: 248
-location: /v1/orders/ord_MTUB58F693A120
-server: cloudflare
-
-{
-  "id": "ord_MTUB58F693A120",
-  "customerId": "cus_01HZX2Y1AB",
-  "serviceType": "wash_fold",
-  "weightKg": 5.5,
-  "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
-  "status": "pending_pickup",
-  "createdAt": "2026-09-10T03:56:14.052Z",
-  "updatedAt": "2026-09-10T03:56:14.052Z"
-}
-```
-
-**Langkah 2: Read (GET /v1/orders/{orderId})**
-```bash
-curl -i https://pbse.kevinio.my.id/v1/orders/ord_MTUB58F693A120
-```
-
-**Response Read:**
-```http
-HTTP/2 200 
-date: Thu, 10 Sep 2026 03:56:30 GMT
-content-type: application/json; charset=utf-8
-content-length: 248
-server: cloudflare
-
-{
-  "id": "ord_MTUB58F693A120",
-  "customerId": "cus_01HZX2Y1AB",
-  "serviceType": "wash_fold",
-  "weightKg": 5.5,
-  "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
-  "status": "pending_pickup",
-  "createdAt": "2026-09-10T03:56:14.052Z",
-  "updatedAt": "2026-09-10T03:56:14.052Z"
-}
-```
-*Hasil:* Status `200 OK` dan representasi entitas persis sama dengan yang dibuat.
-
----
-
-### Demo 3 — Idempotent Retry dan Durability Setelah Restart
-- **Tujuan:** Menunjukkan sistem aman terhadap network retry (anti-duplikasi) dan menjamin data persisten meski container di-restart.
-
-**Langkah 1: Mengirim Ulang POST Pertama (Idempotent Retry)**
-```bash
-curl -i -X POST "https://pbse.kevinio.my.id/v1/orders" \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: e18290a1-7182-41f2-9021-391847102911" \
-  -d '{
-    "customerId": "cus_01HZX2Y1AB",
-    "serviceType": "wash_fold",
-    "weightKg": 5.5,
-    "pickupAddress": "Jl. Merdeka No. 10, Jakarta"
-  }'
-```
-
-**Response Retry Kedua:**
-```http
-HTTP/2 201 
-date: Thu, 10 Sep 2026 03:57:02 GMT
-content-type: application/json; charset=utf-8
-content-length: 248
-location: /v1/orders/ord_MTUB58F693A120
-server: cloudflare
-
-{
-  "id": "ord_MTUB58F693A120",
-  "customerId": "cus_01HZX2Y1AB",
-  "serviceType": "wash_fold",
-  "weightKg": 5.5,
-  "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
-  "status": "pending_pickup",
-  "createdAt": "2026-09-10T03:56:14.052Z",
-  "updatedAt": "2026-09-10T03:56:14.052Z"
-}
-```
-*Hasil:* Status tetap `201 Created` dan data identik di-replay dari tabel `idempotency_records`. Tidak ada record baru yang bertambah di database.
-
-**Langkah 2: Restart Container melalui Portainer**
-Container `laundry-service` di-restart melalui web UI Portainer di VPS.
-
-**Langkah 3: Read Ulang Setelah Restart Selesai**
-```bash
-curl -i https://pbse.kevinio.my.id/v1/orders/ord_MTUB58F693A120
-```
-
-**Response Setelah Restart:**
-```http
-HTTP/2 200 
-date: Thu, 10 Sep 2026 03:58:20 GMT
-content-type: application/json; charset=utf-8
-content-length: 248
-server: cloudflare
-
-{
-  "id": "ord_MTUB58F693A120",
-  "customerId": "cus_01HZX2Y1AB",
-  "serviceType": "wash_fold",
-  "weightKg": 5.5,
-  "pickupAddress": "Jl. Merdeka No. 10, Jakarta",
-  "status": "pending_pickup",
-  "createdAt": "2026-09-10T03:56:14.052Z",
-  "updatedAt": "2026-09-10T03:56:14.052Z"
-}
-```
-*Hasil:* Status `200 OK` dan data tetap ada secara durable karena tersimpan pada volume Docker `pbse_laundry_data:/app/service/db`.
-
----
-
-## 4. Rangkuman Bukti Checklist Service Owner (Poin 10)
-
-| Kriteria Bukti | Hasil Pengujian | Keterangan |
+| Tahap | Deliverable | Lokasi |
 |---|---|---|
-| Service dapat diakses publik | `https://pbse.kevinio.my.id` | HTTPS aktif via Traefik |
-| `/health` mengembalikan 200 | `{"status":"ok"}` | Lulus |
-| Database memakai file schema committed | `service/db/schema.sql` | Dijalankan saat inisialisasi |
-| Database memakai named volume | `pbse_laundry_data` | Persistent storage aktif |
-| Data tetap ada setelah restart | Terverifikasi via GET | Lulus |
-| Idempotency tersimpan di database | Tabel `idempotency_records` | Lulus (replay 201 & conflict 409) |
-| Tidak ada credential di source code | Hanya membaca env | `.env` tidak masuk Git |
-| POST valid mengembalikan 201 & Location | Header `Location: /v1/orders/{id}` | Lulus |
-| Contract Test Live Service | 33 passed, 0 failed | Divalidasi setelah manual redeploy |
+| 5 | Skeleton auth + validasi config OIDC fail-fast | `service/src/auth/`, `service/src/config.js` |
+| 6 | Layer 1 authentication (JWKS, RS256, `exp`/`iss`/`aud`) | `service/src/auth/verify.js`, `authenticate.js`, `principal.js` |
+| 7 | Layer 2 scope enforcement sebelum query | `service/src/auth/require-scope.js` |
+| 8 | Layer 3 object authorization per handler | `service/src/auth/ownership.js`, `routes/*`, `store/*` |
+| 8 | Koleksi dibatasi di dalam query SQL | `store/order-store.js`, `store/pickup-store.js` |
+| 9 | Redaksi log `Authorization`/`Cookie`/`Set-Cookie` | `service/src/logger.js` |
+| 4 | Operasi yang hilang untuk 4 boundary test | `openapi.yaml` (`createPickup`, `collectPickup`, `fulfilOrder`) |
+| — | Migrasi in-place database P3 (`orders.outlet_id`, tabel `pickups`) | `service/src/database.js`, `service/db/schema.sql` |
+
+Pemeriksaan tiga lapisan **terpisah** dan dijalankan berurutan:
+
+```text
+Request -> authenticate (401) -> requireScope (403) -> load object -> ownership (404) -> mutation/response
+```
+
+---
+
+## 2. Bukti Konfigurasi Fail-Fast (Tahap 5)
+
+```bash
+cd service
+OIDC_ISSUER= node src/app.js
+```
+
+Output:
+
+```text
+FATAL  Missing required environment variable: OIDC_ISSUER
+```
+
+Exit code non-zero: service tidak sempat melayani satu request pun dengan
+konfigurasi OIDC yang tidak lengkap.
+
+---
+
+## 3. Bukti Tiga Status Berbeda (Tahap 6–8)
+
+Dijalankan terhadap service lokal (`node src/app.js`) dengan token uji bertanda
+tangan RS256. Nilai token tidak direkam.
+
+| Kondisi | Layer | Hasil |
+|---|---|---|
+| `GET /v1/orders/{id}` tanpa header `Authorization` | 1 | `401` + `WWW-Authenticate: Bearer error="invalid_token"` |
+| `GET /v1/orders/{id}` dengan token yang payload-nya diubah | 1 | `401` |
+| `GET /v1/orders/{id}` dengan token expired | 1 | `401` |
+| `GET /v1/orders/{id}` dengan token issuer/audience berbeda | 1 | `401` |
+| Token `student` pada `POST /v1/orders/{id}/fulfilment` | 2 | `403` + `requiredScopes: ["orders:fulfil"]` |
+| Token `student` pada `POST /v1/pickups` | 2 | `403` |
+| `student-a` membaca order milik `student-b` | 3 | `404` (bukan `403`) |
+| `staff-outlet-a` membaca order `outlet_b` | 3 | `404` |
+| `courier-a` collect pickup milik `courier-b` | 3 | `404` + baris database tidak berubah |
+| Order/pickup yang tidak ada | 3 | `404` dengan body **identik** |
+
+Semua di atas diverifikasi otomatis oleh `tests/authz/test-authz.js`
+(36 pemeriksaan, seluruhnya lulus).
+
+---
+
+## 4. Bukti Scope Dievaluasi Sebelum Query Database (Tahap 7)
+
+Checkpoint P4 meminta: hentikan database, lalu ulangi request yang kurang scope —
+harus tetap `403`, bukan `500`.
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  -H "Authorization: Bearer $STUDENT_TOKEN" \
+  http://127.0.0.1:8080/v1/orders/ord_doesnotexist/fulfilment
+# 403
+```
+
+Identifier yang bahkan tidak ada tetap menghasilkan `403`, yang membuktikan
+scope check berjalan sebelum object di-load.
+
+---
+
+## 5. Bukti Koleksi Dibatasi di Dalam Query (Tahap 8d)
+
+`order-store.listForPrincipal()` dan `pickup-store.listForPrincipal()`
+menambahkan klausa `WHERE` berdasarkan principal:
+
+```sql
+-- customer
+SELECT * FROM orders WHERE customer_id = ? ORDER BY created_at, id LIMIT ?
+-- staff
+SELECT * FROM orders WHERE outlet_id = ? ORDER BY created_at, id LIMIT ?
+-- driver
+SELECT * FROM pickups WHERE driver_id = ? ORDER BY created_at, id LIMIT ?
+```
+
+Tidak ada baris milik principal lain yang pernah masuk ke process memory, dan
+pagination tetap benar karena filter dilakukan di database, bukan di JavaScript.
+
+Diverifikasi oleh pemeriksaan "collection is filtered in the query" pada
+`tests/authz/test-authz.js`: daftar order `staff-outlet-a` tidak memuat order
+`outlet_b`, dan daftar pickup `courier-a` tidak memuat pickup `courier-b`.
+
+---
+
+## 6. Bukti Refused Write Tidak Mengubah Data (Tahap 8c)
+
+Test 2 menjalankan urutan berikut:
+
+1. `staff-outlet-a` menugaskan pickup kepada `courier-b` (`POST /v1/pickups`) →
+   `201`, `driverId: drv_courierB`.
+2. Baca baris database: `status = 'assigned'`, `collected_at = NULL`.
+3. `courier-a` memanggil `POST /v1/pickups/{id}/collect` → `404`.
+4. Baca ulang baris database: `status = 'assigned'`, `collected_at = NULL`
+   (**tidak berubah**).
+5. `courier-b` memanggil endpoint yang sama → `200`, `status: 'picked_up'`.
+6. Baca ulang: `status = 'picked_up'` (baru sekarang berubah).
+
+Pemeriksaan status saja tidak cukup; langkah 2/4/6 membaca database langsung.
+
+---
+
+## 7. Bukti Tidak Ada Token di Log (Tahap 9)
+
+`tests/authz/test-authz.js` menampung seluruh stdout+stderr service selama
+pengujian, lalu memastikan:
+
+- tidak ada token yang pernah diterbitkan muncul di output;
+- tidak ada pola JWT (`eyJ...eyJ...`);
+- tidak ada header `Authorization: Bearer <value>`.
+
+Hasil: **lulus**. Log service hanya memuat method, path, status, correlation id,
+dan alasan penolakan yang stabil, contoh:
+
+```text
+Rejected bearer token { method: 'GET', path: '/v1/orders', status: 401, reason: 'ERR_JWT_CLAIM_VALIDATION_FAILED' }
+```
+
+Tidak ada nilai token, tidak ada payload JWT, tidak ada header mentah.
+
+---
+
+## 8. Bukti Empat Boundary Benar-Benar Diuji (Tahap 11c)
+
+Test yang tetap hijau saat pemeriksaannya dihapus tidak menguji apa pun. Untuk
+membuktikan sebaliknya, `tests/authz/verify-checks-are-live.js` menjalankan
+kembali suite authz dengan satu predicate dinetralkan pada satu waktu, lalu
+memastikan suite menjadi **MERAH** karena alasan yang tepat:
+
+| Pemeriksaan dinetralkan | Hasil |
+|---|---|
+| `mayReadOrder` (test 1) | suite MERAH pada `test 1: student-a reading student-b order -> 404` |
+| `requireScope` (test 3) | suite MERAH pada `test 3: student token on staff-only fulfilment -> 403` |
+| Dimensi outlet pada `mayReadOrder` (test 4) | suite MERAH pada `test 4: staff-outlet-a reading outlet B order -> 404` |
+| `mayCollectPickup` (test 2) | suite MERAH pada `test 2: courier-a collecting courier-b pickup -> 404` |
+| Semua dipulihkan | suite HIJAU kembali |
+
+Fault injection hidup **di dalam test harness** (`tests/helpers/disable-check.js`,
+di-load via `--require`) dan hanya aktif bila `AUTHZ_DISABLE_CHECK` diset. Tidak
+ada jalur bypass, flag, atau `if (NODE_ENV === 'test')` di dalam kode service.
+
+---
+
+## 9. Hasil Perintah Verifikasi
+
+Dijalankan dari root repository:
+
+```bash
+node tests/authz/test-authz.js
+# Authz tests passed  (36 pemeriksaan)
+
+node tests/contract/test-contract.js
+# Total Passed: 28   Total Failed: 0   Result: SUCCESS   (terhadap Prism mock)
+
+node tests/contract/run-against-service.js
+# Total Passed: 33   Total Failed: 0   Result: SUCCESS   (terhadap service terautentikasi)
+
+node tests/contract/test-persistence-restart.js
+# {"createdIds":[...3 id...],"restoredIds":[...3 id yang sama...]}
+
+node tests/contract/test-idempotency-concurrency.js
+# {"requestCount":5,"statuses":[201,201,201,201,201],"uniqueIds":["ord_..."],"databaseRows":1}
+
+node tests/contract/check-legacy-migration.js
+# orders columns: ... ,outlet_id
+# tables: cancellations,idempotency_records,orders,pickups
+# legacy row preserved: {"id":"ord_p3legacy","outlet_id":null}
+
+npx @redocly/cli lint openapi.yaml
+# Woohoo! Your API description is valid. (0 error)
+
+node tests/authz/verify-checks-are-live.js
+# All four boundaries are proven to be genuinely exercised.
+```
+
+Contract suite P3 dijalankan ulang terhadap service terautentikasi **tanpa
+mengubah kontrak**: yang berubah hanya runner-nya, yang kini mengirim bearer
+token (`tests/contract/run-against-service.js`). Operasi yang lulus di P3 tetap
+lulus.
+
+---
+
+## 10. Ringkasan Bukti Checklist Service Owner (P4 §6)
+
+| Kriteria Bukti | Hasil |
+|---|---|
+| `OIDC_*` ditambahkan ke `.env.example` dan config validation | Lulus (fail-fast terbukti) |
+| Struktur `service/src/auth/` dibuat | `verify.js`, `principal.js`, `authenticate.js`, `require-scope.js`, `ownership.js` |
+| Verifikasi token berbasis JWKS | Lulus (`jose` `createRemoteJWKSet`, JWKS dibangun sekali di module level) |
+| `req.principal` dibentuk | `{ subject, domainId, outletId, kind, roles, scopes, tokenId }` |
+| Authentication middleware terpasang | `app.use(authenticate)` sebelum seluruh route `/v1` |
+| Scope middleware terpasang pada route | Seluruh 9 operasi memakai `requireScope(...)` sesuai `openapi.yaml` |
+| Ownership predicate diimplementasikan | `mayReadOrder`, `mayCancelOrder`, `mayCreateOrder`, `mayClaimOrder`, `mayFulfilOrder`, `mayCollectPickup` |
+| Object check sebelum mutation | Lulus (refused write tidak mengubah data) |
+| Collection dibatasi di query | Lulus (`WHERE` di SQL, bukan filter di JavaScript) |
+| Token diredaksi dari log | Lulus (scan output service bersih) |
+| Service P3 tetap kompatibel | Lulus (contract suite 33/33 terhadap service terautentikasi) |
+| Membantu Tori menyediakan endpoint/fixture untuk test | `POST /orders/{id}/fulfilment`, `POST /pickups`, `POST /pickups/{id}/collect`, fixture 6 principal di `tests/helpers/harness.js` |
+| Menjalankan full test dan memperbaiki error | Lulus (authz, contract, persistence, concurrency, lint) |
+
+---
+
+## 11. Yang Belum Dikerjakan (bukan bagian Service Owner)
+
+- **Commit, tag `l4`, dan push** — sesuai instruksi, tidak dilakukan dari sesi
+  ini. Perubahan sengaja ditinggalkan sebagai working tree pada branch
+  `service-owner`.
+- **Bukti refresh-token rotation/reuse** terhadap Keycloak live (Tahap 10) —
+  milik Aya & Tori; statusnya sudah tercatat di
+  `docs/decisions/0003-autentikasi.md` dan
+  `docs/p4-refresh-rotation-verification.txt`.
+- **Deployment ulang ke `pbse.kevinio.my.id`** — perlu `.env` OIDC produksi pada
+  server, di luar cakupan sesi ini.

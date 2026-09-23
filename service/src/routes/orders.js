@@ -5,15 +5,12 @@ const express = require('express');
 const router = express.Router();
 
 const orderStore = require('../store/order-store');
-const idempotencyStore = require('../store/idempotency-store');
+const pickupStore = require('../store/pickup-store');
 const cancellationStore = require('../store/cancellation-store');
 const { toOrderRepresentation } = require('../representation/order');
-const {
-  toCancellationRepresentation,
-} = require('../representation/cancellation');
+const { toCancellationRepresentation } = require('../representation/cancellation');
 const {
   validateOrderId,
-  validateIdempotencyKey,
   validateCreateOrder,
   validateListParams,
 } = require('../schemas/order-schema');
@@ -21,7 +18,6 @@ const {
   sendProblem,
   badRequest,
   notFound,
-  idempotencyConflict,
   orderNotCancellable,
   unprocessable,
 } = require('../problem');
@@ -30,7 +26,13 @@ const {
   mayReadOrder,
   mayCancelOrder,
   mayCreateOrder,
+  mayClaimOrder,
 } = require('../auth/ownership');
+const {
+  checkIdempotency,
+  claimIdempotency,
+  saveIdempotencyRecord,
+} = require('../idempotency');
 
 function generateId(prefix) {
   const ts = Date.now().toString(36).toUpperCase();
@@ -38,71 +40,10 @@ function generateId(prefix) {
   return `${prefix}${ts}${rand}`;
 }
 
-function bodyHash(body) {
-  return crypto
-    .createHash('sha256')
-    .update(JSON.stringify(body ?? {}))
-    .digest('hex');
-}
-
-function checkIdempotency(req) {
-  const key = req.headers['idempotency-key'];
-  const keyError = validateIdempotencyKey(key);
-  if (keyError) return { error: badRequest(keyError, req.originalUrl) };
-
-  const hash = bodyHash(req.body);
-  const record = idempotencyStore.findByKey(key);
-
-  if (record && new Date(record.expires_at) >= new Date()) {
-    if (record.body_hash !== hash) {
-      return {
-        error: idempotencyConflict(
-          'Idempotency-Key was reused with different request data.',
-          req.originalUrl,
-        ),
-      };
-    }
-    if (record.request_status === 'processing') {
-      return {
-        error: idempotencyConflict(
-          'A request with this Idempotency-Key is still being processed.',
-          req.originalUrl,
-        ),
-        retryAfter: 5,
-      };
-    }
-    if (record.request_status === 'completed') {
-      return {
-        replay: true,
-        status: record.response_status,
-        body: record.response_body,
-      };
-    }
-  }
-
-  return { proceed: true, key, hash };
-}
-
-function claimIdempotency(key, hash, instance) {
-  const now = new Date().toISOString();
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-  if (idempotencyStore.claim(key, hash, now, expiresAt)) return null;
-
-  const current = idempotencyStore.findByKey(key);
-  if (current && current.body_hash !== hash) {
-    return { error: idempotencyConflict('Idempotency-Key was reused with different request data.', instance) };
-  }
-  if (current && current.request_status === 'processing') {
-    return { error: idempotencyConflict('A request with this Idempotency-Key is still being processed.', instance), retryAfter: 5 };
-  }
-  if (current && current.request_status === 'completed') {
-    return { replay: true, status: current.response_status, body: current.response_body };
-  }
-  return { error: idempotencyConflict('A request with this Idempotency-Key is unavailable.', instance) };
-}
-
-function saveIdempotencyRecord(key, hash, responseStatus, responseBody) {
-  idempotencyStore.markCompleted(key, responseStatus, responseBody);
+function sendOrderNotFound(res) {
+  // Identical for absent and not-owned, including the instance: a differing
+  // instance path would itself leak which identifiers exist.
+  return sendProblem(res, notFound('/v1/orders/{orderId}'));
 }
 
 router.get('/:orderId', requireScope('orders:read'), (req, res) => {
@@ -111,11 +52,11 @@ router.get('/:orderId', requireScope('orders:read'), (req, res) => {
   if (err) return sendProblem(res, badRequest(err, req.originalUrl));
 
   const row = orderStore.getById(orderId);
-  if (!row || !mayReadOrder(req.principal, row)) {
-    return sendProblem(
-      res,
-      notFound('The requested order was not found.', '/v1/orders/{orderId}'),
-    );
+  if (!row) return sendOrderNotFound(res);
+
+  const assignment = pickupStore.getByOrderId(orderId);
+  if (!mayReadOrder(req.principal, row, assignment)) {
+    return sendOrderNotFound(res);
   }
 
   res.status(200).json(toOrderRepresentation(row));
@@ -130,11 +71,10 @@ router.get('/', requireScope('orders:read'), (req, res) => {
   }
 
   const parsedLimit = limit ? parseInt(limit, 10) : 20;
-  const result = orderStore.getAll({
+  const result = orderStore.listForPrincipal(req.principal, {
     status,
     limit: parsedLimit,
     cursor,
-    customerId: req.principal.subject,
   });
 
   if (result === null) {
@@ -164,16 +104,20 @@ router.post('/', requireScope('orders:write'), (req, res) => {
   if (validation) {
     const problem =
       validation.status === 422
-        ? unprocessable(validation.errors.join('; '), req.originalUrl, { invalidFields: validation.fields })
-        : badRequest(validation.errors.join('; '), req.originalUrl, { invalidFields: validation.fields });
+        ? unprocessable(validation.errors.join('; '), req.originalUrl, {
+            invalidFields: validation.fields,
+          })
+        : badRequest(validation.errors.join('; '), req.originalUrl, {
+            invalidFields: validation.fields,
+          });
     return sendProblem(res, problem);
   }
 
   if (!mayCreateOrder(req.principal, req.body.customerId)) {
-    return sendProblem(
-      res,
-      notFound('The requested customer was not found.', req.originalUrl),
-    );
+    // Same 404 shape as an order that is not yours: a customer may only create
+    // orders for their own domain identity, and the refusal must not reveal
+    // whether the named customer exists.
+    return sendProblem(res, notFound('/v1/orders/{orderId}'));
   }
 
   const claim = claimIdempotency(idem.key, idem.hash, req.originalUrl);
@@ -192,6 +136,7 @@ router.post('/', requireScope('orders:write'), (req, res) => {
     weight_kg: req.body.weightKg,
     pickup_address: req.body.pickupAddress,
     status: 'pending_pickup',
+    outlet_id: null,
     created_at: now,
     updated_at: now,
   };
@@ -209,10 +154,7 @@ router.post('/', requireScope('orders:write'), (req, res) => {
 
 const CANCELLABLE = ['pending_pickup', 'ready_for_pickup', 'confirmed'];
 
-router.post(
-  '/:orderId/cancellation',
-  requireScope('orders:write'),
-  (req, res) => {
+router.post('/:orderId/cancellation', requireScope('orders:write'), (req, res) => {
   const { orderId } = req.params;
 
   const idErr = validateOrderId(orderId);
@@ -229,10 +171,7 @@ router.post(
 
   const order = orderStore.getById(orderId);
   if (!order || !mayCancelOrder(req.principal, order)) {
-    return sendProblem(
-      res,
-      notFound('The requested order was not found.', '/v1/orders/{orderId}/cancellation'),
-    );
+    return sendProblem(res, notFound('/v1/orders/{orderId}/cancellation'));
   }
 
   if (!CANCELLABLE.includes(order.status)) {
@@ -270,7 +209,35 @@ router.post(
   saveIdempotencyRecord(idem.key, idem.hash, 200, JSON.stringify(representation));
 
   res.status(200).json(representation);
-  },
-);
+});
+
+// Staff-only operation (scope `orders:fulfil`). A customer token is refused at
+// Layer 2 with 403 before the database is touched. Staff claim an unbound
+// order, or keep working on an order already bound to their outlet; an order
+// bound to another outlet is answered with the same 404 as an absent order.
+router.post('/:orderId/fulfilment', requireScope('orders:fulfil'), (req, res) => {
+  const { orderId } = req.params;
+
+  const err = validateOrderId(orderId);
+  if (err) return sendProblem(res, badRequest(err, req.originalUrl));
+
+  const order = orderStore.getById(orderId);
+  if (!order) return sendOrderNotFound(res);
+
+  // Ownership is decided before any mutation is attempted.
+  if (!mayClaimOrder(req.principal, order)) {
+    return sendOrderNotFound(res);
+  }
+
+  const now = new Date().toISOString();
+  if (order.outlet_id === null) {
+    orderStore.assignOutlet(orderId, req.principal.outletId, now);
+  }
+  if (order.status !== 'processing') {
+    orderStore.updateStatus(orderId, 'processing', now);
+  }
+
+  res.status(200).json(toOrderRepresentation(orderStore.getById(orderId)));
+});
 
 module.exports = router;

@@ -219,6 +219,107 @@ langsung tidak berlaku; masa berlaku pendek membatasi sisa masa penggunaannya.
 | Kevin | Review provider dan pemetaan identitas/object; konfigurasi serta backend pada tahap terkait. |
 | Tori | Review fixture token/JWKS dan kriteria bukti; implementasi test pada tahap terkait. |
 
+## Pembaruan Tahap 8–12 (Service Owner)
+
+Bagian ini menutup **gap yang dicatat di atas** ("schema P3 belum memiliki relasi
+outlet atau pemetaan sub ke identitas domain, dan belum ada operasi khusus staf
+maupun mutation pickup") setelah implementasi backend selesai. Status: kontrak
+`1.1.0`, service terautentikasi, seluruh test lulus.
+
+### 8.1 Pemetaan sub → identitas domain
+
+Klaim provider yang dipakai:
+
+| Claim | Dipakai sebagai | Catatan |
+|---|---|---|
+| `sub` | `principal.subject` | identitas token |
+| `fixture_domain_id` | `principal.domainId` | identitas domain (`cus_*`, `drv_*`, `outlet_*`); fallback ke `sub` |
+| `outlet_id` | `principal.outletId` | hanya untuk staf; berasal dari provider, **tidak** dari request |
+| `realm_access.roles` | `principal.roles` | `customer` / `driver` / `staff` |
+| `scope` | `principal.scopes` | daftar capability |
+| `jti` | `principal.tokenId` | bila tersedia |
+
+`customerId` dari body atau URL **tidak pernah** diperlakukan sebagai bukti
+kepemilikan.
+
+### 8.2 Relasi outlet
+
+`orders.outlet_id` (nullable) ditambahkan lewat migrasi in-place, sehingga
+database P3 yang sudah ada tidak perlu dibuat ulang dan data P3 tidak hilang.
+Order tanpa outlet tetap dapat dibaca oleh customer pemiliknya; staf dapat
+menerima order yang belum terikat outlet, dan setelah terikat order tersebut
+hanya dapat dijangkau oleh outlet yang memegangnya.
+
+### 8.3 Operasi yang sebelumnya tidak ada di kontrak
+
+| Operasi | Scope | Actor | Menggantikan contoh materi |
+|---|---|---|---|
+| `POST /v1/orders/{orderId}/fulfilment` | `orders:fulfil` | Staff | `POST /v1/orders/{orderId}/accept` |
+| `POST /v1/pickups` | `orders:fulfil` | Staff | — (menugaskan driver) |
+| `POST /v1/pickups/{pickupId}/collect` | `pickups:write` | Driver | `PATCH /v1/deliveries/{id}/collect` |
+
+Resource kelompok ini adalah **Pickup** (bukan Delivery), sehingga padanan
+`collect` memakai resource Pickup. Konsekuensinya `pickups:write` dan
+`orders:fulfil` tidak lagi menjadi scope "hantu": masing-masing kini dipakai oleh
+operasi nyata, sehingga jumlah scope (5) tetap jauh di bawah jumlah operasi (9).
+
+### 8.4 Aturan kepemilikan final
+
+| Objek | Aturan |
+|---|---|
+| Order (read) | customer pemilik **atau** staff outlet yang memegang order **atau** driver yang ditugaskan pada pickup order tersebut |
+| Order (cancel) | hanya customer pemilik, dan hanya pada status `pending_pickup`/`ready_for_pickup`/`confirmed` |
+| Order (fulfil / claim) | staff, hanya bila order belum terikat outlet **atau** sudah terikat outletnya sendiri |
+| Pickup (dispatch) | staff, dengan aturan order yang sama seperti fulfil |
+| Pickup (collect) | hanya `driver_id` yang tercatat pada pickup tersebut |
+| Koleksi | dibatasi di dalam query SQL: customer `WHERE customer_id`, staff `WHERE outlet_id`, driver `WHERE driver_id` |
+
+### 8.5 Strategi test token — realisasi
+
+Strategi yang direncanakan di §6 direalisasikan di
+`tests/helpers/harness.js`: key pair RS256 dibuat saat test berjalan, hanya public
+key yang disajikan melalui JWKS lokal, dan issuer/audience test berbeda dari
+produksi. Verifier tetap menjalankan seluruh pemeriksaan (signature, algoritma,
+issuer, audience, expiry) — **tidak ada bypass autentikasi untuk test**.
+
+Fixture 6 principal dengan relasi object eksplisit:
+
+| Principal | domainId | outletId | scope |
+|---|---|---|---|
+| `student-a` | `cus_studentA` | — | `orders:read orders:write` |
+| `student-b` | `cus_studentB` | — | `orders:read orders:write` |
+| `courier-a` | `drv_courierA` | — | `pickups:read pickups:write` |
+| `courier-b` | `drv_courierB` | — | `pickups:read pickups:write` |
+| `staff-outlet-a` | `outlet_a` | `outlet_a` | `orders:read pickups:read orders:fulfil` |
+| `staff-outlet-b` | `outlet_b` | `outlet_b` | `orders:read pickups:read orders:fulfil` |
+
+### 8.6 Bukti empiris (bukan rencana)
+
+| Klaim | Bukti |
+|---|---|
+| Empat negative test lulus, masing-masing boundary berbeda | `node tests/authz/test-authz.js` → `Authz tests passed` (36 pemeriksaan) |
+| Test benar-benar menguji pemeriksaannya | `node tests/authz/verify-checks-are-live.js` → keempat boundary MERAH saat pemeriksaannya dinetralkan |
+| `401` tanpa token / token diubah / expired / issuer-audience salah | `tests/authz/test-authz.js` |
+| Absent vs not-owned identik (status + body) | pemeriksaan `deepEqual` body pada test 1, 2, dan 4 |
+| Unauthorized write tidak mengubah database | test 2 membaca `status`/`collected_at` sebelum dan sesudah |
+| Collection dibatasi di query | test 4 & test 2 membandingkan daftar milik outlet/driver sendiri |
+| Contract test P3 tetap lulus | `node tests/contract/run-against-service.js` → 33/33 |
+| Tidak ada token di log | pemeriksaan otomatis atas output service |
+| `openapi.yaml` lint lulus | `npx @redocly/cli lint openapi.yaml` → valid, 0 error |
+
+Rincian perintah dan keluaran ada di `service/EVIDENCE.md`.
+
+### 8.7 Dampak terhadap Consequences di atas
+
+- "Relasi identitas, outlet, dan operasi yang belum tersedia perlu disepakati
+  sebelum implementasi/pengujian object authorization dapat lengkap" — **selesai**:
+  relasi outlet, pemetaan identitas domain, dan operasi khusus staf/driver sudah
+  tersedia dan teruji.
+- "Autentikasi nantinya mengubah cara client P3 memanggil API" — terealisasi:
+  kontrak naik ke `1.1.0` (perubahan kompatibel), dan contract test P3 kini
+  menyuplai token melalui runner tanpa mengubah kontrak.
+- Bukti refresh rotation (§7) tetap berlaku dan tidak berubah oleh pekerjaan ini.
+
 Referensi lokal: [taksonomi client](../client-taxonomy.md),
 [domain](../domain.md), [ADR P3](0002-implementasi.md),
 [kontrak P3](../../openapi.yaml), dan [kebijakan kompatibilitas](../compatibility.md).

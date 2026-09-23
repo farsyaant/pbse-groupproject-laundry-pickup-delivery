@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Laundry Pickup & Delivery API
-  version: 1.0.0
+  version: 1.1.0
   license:
     name: Academic project
     url: https://opensource.org/licenses/MIT
@@ -292,6 +292,120 @@ paths:
           $ref: '#/components/responses/ServiceUnavailable'
         '504':
           $ref: '#/components/responses/GatewayTimeout'
+    post:
+      tags: [Pickups]
+      summary: Dispatch a pickup for an order
+      operationId: createPickup
+      description: >-
+        Staff-only operation used to assign a driver to an order's pickup. The
+        service loads the order named by `orderId` and answers with the same
+        `404` used for an unknown order when that order is not within the
+        caller's outlet, so identifiers cannot be enumerated. Idempotency-Key
+        follows the same 24-hour contract as `createOrder`. The created pickup
+        starts in `assigned` status because a driver is named at creation time.
+      security:
+        - oauth2: [orders:fulfil]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePickupRequest'
+            example:
+              orderId: ord_01HZX2Y5K7
+              driverId: drv_01HZX2Z1AA
+              scheduledAt: '2026-09-03T09:00:00Z'
+      responses:
+        '201':
+          description: Pickup dispatched
+          headers:
+            Location:
+              description: URL of the newly created pickup.
+              schema:
+                type: string
+                format: uri-reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pickup'
+              example:
+                id: pku_01HZX2Z8K9
+                orderId: ord_01HZX2Y5K7
+                driverId: drv_01HZX2Z1AA
+                scheduledAt: '2026-09-03T09:00:00Z'
+                address: Jl. Merdeka No. 10, Jakarta
+                status: assigned
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+  /pickups/{pickupId}/collect:
+    post:
+      tags: [Pickups]
+      summary: Mark an assigned pickup as collected
+      operationId: collectPickup
+      description: >-
+        Driver operation. Only the driver named in the pickup's `driverId` may
+        collect it; any other caller receives the same `404` as an unknown
+        pickup. The ownership check runs before the status is written, so a
+        refused request never mutates the record. The transition is naturally
+        idempotent: collecting an already collected pickup returns the current
+        representation with `200` and does not require an Idempotency-Key.
+      security:
+        - oauth2: [pickups:write]
+      parameters:
+        - $ref: '#/components/parameters/PickupId'
+      responses:
+        '200':
+          description: Pickup collected, or already collected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pickup'
+              example:
+                id: pku_01HZX2Z8K9
+                orderId: ord_01HZX2Y5K7
+                driverId: drv_01HZX2Z1AA
+                scheduledAt: '2026-09-03T09:00:00Z'
+                address: Jl. Merdeka No. 10, Jakarta
+                status: picked_up
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
 components:
   securitySchemes:
@@ -351,6 +465,15 @@ components:
       schema:
         type: string
         example: cur_01HZX31ABC
+    PickupId:
+      name: pickupId
+      in: path
+      required: true
+      description: Opaque server-generated pickup identifier
+      schema:
+        type: string
+        pattern: '^pku_[A-Za-z0-9]+$'
+        example: pku_01HZX2Z8K9
     PickupStatusFilter:
       name: status
       in: query
@@ -407,6 +530,13 @@ components:
           enum: [pending_pickup, ready_for_pickup, confirmed, assigned, picked_up, processing, completed, cancelled]
           description: Clients MUST safely handle unknown values as an in-progress state.
           example: pending_pickup
+        outletId:
+          type: string
+          nullable: true
+          description: >-
+            Outlet that took this order in. Null until a staff member accepts
+            the order; added in v1.1.0 and safe for clients to ignore.
+          example: outlet_a
         createdAt:
           type: string
           format: date-time
@@ -462,6 +592,22 @@ components:
           type: string
           enum: [scheduled, assigned, picked_up, delivered, cancelled]
           example: scheduled
+    CreatePickupRequest:
+      type: object
+      required: [orderId, driverId, scheduledAt]
+      properties:
+        orderId:
+          type: string
+          pattern: '^ord_[A-Za-z0-9]+$'
+          example: ord_01HZX2Y5K7
+        driverId:
+          type: string
+          pattern: '^drv_[A-Za-z0-9]+$'
+          example: drv_01HZX2Z1AA
+        scheduledAt:
+          type: string
+          format: date-time
+          example: '2026-09-03T09:00:00Z'
     Cancellation:
       type: object
       required: [id, orderId, reason, status, createdAt]
@@ -535,7 +681,9 @@ components:
             detail: Request is malformed or contains invalid syntax.
             instance: /v1/orders
     Unauthorized:
-      description: Missing or invalid authentication token
+      description: >-
+        The token is absent, unverifiable, or expired. The service never trusts
+        claims before the signature, issuer, audience, and expiry are verified.
       headers:
         WWW-Authenticate:
           description: OAuth 2.0 / Bearer authentication scheme and error details
@@ -553,7 +701,16 @@ components:
             detail: Authentication is required. Token is missing, invalid, or expired.
             instance: /v1/orders
     Forbidden:
-      description: Insufficient scope or permission
+      description: >-
+        The token is valid but does not carry the scope this operation requires.
+        The scope check runs before any object is loaded, so the refusal leaks
+        no information about whether an identifier exists.
+      headers:
+        WWW-Authenticate:
+          description: OAuth 2.0 / Bearer scope error details
+          schema:
+            type: string
+            example: 'Bearer error="insufficient_scope", scope="orders:fulfil"'
       content:
         application/problem+json:
           schema:
